@@ -1,171 +1,30 @@
-import {
-    WORK_FIELDS,
-    buildPreviewModel,
-    buildSafeFileName,
-    buildVcfPreviewState,
-    computeErrors,
-    createVCFString,
-    shouldEnableQRCode,
-    validatePhotoFile,
-} from './vcard-core.js';
-
-const state = {
-    photo: null,
-    photoError: '',
-};
+const MAX_PHOTO_SIZE_BYTES = 224 * 1024;
 
 document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('vcard-form');
-    const feedback = document.getElementById('form-feedback');
-    const qrContainer = document.getElementById('qr-code');
-    const qrDownloadButton = document.getElementById('qr-download');
+    const vcardForm = document.getElementById('vcard-form');
+    const feedbackElement = document.getElementById('form-feedback');
 
-    const fields = Array.from(form.querySelectorAll('input, textarea'));
-    const textFields = fields.filter((field) => field.type !== 'file');
-    const descriptors = textFields.map((field) => createDescriptor(field));
-    const photoInput = form.querySelector('#photo');
-
-    const previewEls = {
-        name: document.getElementById('preview-name'),
-        role: document.getElementById('preview-role'),
-        company: document.getElementById('preview-company'),
-        contactSection: document.getElementById('preview-contact-section'),
-        contactList: document.getElementById('preview-contact'),
-        addressSection: document.getElementById('preview-address-section'),
-        addressList: document.getElementById('preview-address'),
-        socialSection: document.getElementById('preview-social-section'),
-        socialList: document.getElementById('preview-social'),
-        notesSection: document.getElementById('preview-notes-section'),
-        notes: document.getElementById('preview-notes'),
-    };
-
-    const vcfPreviewElement = document.getElementById('vcf-preview');
-
-    initFieldErrors(fields);
-
-    const workDependentFields = new Set(WORK_FIELDS);
-
-    const touchedFields = new Set();
-
-    function refreshUI({ validateTouched = false } = {}) {
-        const data = collectFormData(textFields);
-        const allErrors = computeErrors(descriptors, data, { photoError: state.photoError });
-
-        const previewModel = buildPreviewModel(data);
-        updatePreview(previewEls, previewModel);
-
-        if (validateTouched) {
-            applyErrors(fields, touchedFields, allErrors);
-        }
-
-        let vcf = '';
-        if (shouldEnableQRCode(data, allErrors)) {
-            vcf = createVCFString({ ...data, photo: state.photo });
-            updateQRCode(qrContainer, qrDownloadButton, vcf);
-        } else {
-            clearQRCode(qrContainer, qrDownloadButton);
-        }
-
-        const vcfState = buildVcfPreviewState(data, allErrors, vcf);
-        updateVCFPreview(vcfPreviewElement, vcfState);
-
-        if (feedback.textContent) {
-            feedback.textContent = '';
-            feedback.classList.remove('success');
-        }
-    }
-
-    fields.forEach((field) => {
-        if (field.type === 'file') {
-            field.addEventListener('change', async () => {
-                touchedFields.add(field.id);
-                await handlePhotoChange(field);
-                refreshUI({ validateTouched: true });
-            });
-            return;
-        }
-
-        field.addEventListener('input', () => {
-            if (workDependentFields.has(field.id)) {
-                touchedFields.add('company');
-            }
-
-            const data = collectFormData(textFields);
-            const allErrors = computeErrors(descriptors, data, { photoError: state.photoError });
-
-            if (touchedFields.has(field.id) || touchedFields.size > 0) {
-                applyErrors(fields, touchedFields, allErrors);
-            }
-
-            let vcf = '';
-            if (shouldEnableQRCode(data, allErrors)) {
-                vcf = createVCFString({ ...data, photo: state.photo });
-                updateQRCode(qrContainer, qrDownloadButton, vcf);
-            } else {
-                clearQRCode(qrContainer, qrDownloadButton);
-            }
-
-            const vcfState = buildVcfPreviewState(data, allErrors, vcf);
-            updateVCFPreview(vcfPreviewElement, vcfState);
-
-            const previewModel = buildPreviewModel(data);
-            updatePreview(previewEls, previewModel);
-            if (feedback.textContent) {
-                feedback.textContent = '';
-                feedback.classList.remove('success');
-            }
-        });
-
-        field.addEventListener('blur', () => {
-            touchedFields.add(field.id);
-            if (workDependentFields.has(field.id)) {
-                touchedFields.add('company');
-            }
-
-            const data = collectFormData(textFields);
-            const allErrors = computeErrors(descriptors, data, { photoError: state.photoError });
-            applyErrors(fields, touchedFields, allErrors);
-
-            let vcf = '';
-            if (shouldEnableQRCode(data, allErrors)) {
-                vcf = createVCFString({ ...data, photo: state.photo });
-                updateQRCode(qrContainer, qrDownloadButton, vcf);
-            } else {
-                clearQRCode(qrContainer, qrDownloadButton);
-            }
-
-            const vcfState = buildVcfPreviewState(data, allErrors, vcf);
-            updateVCFPreview(vcfPreviewElement, vcfState);
-        });
-    });
-
-    qrDownloadButton.addEventListener('click', () => {
-        const dataUrl = getQRCodeDataUrl(qrContainer);
-        if (!dataUrl) {
-            return;
-        }
-        const data = collectFormData(textFields);
-        const fileName = `${buildSafeFileName(data)}-qr.png`;
-        downloadDataUrl(dataUrl, fileName);
-    });
-
-    form.addEventListener('submit', (event) => {
+    vcardForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
-        textFields.forEach((field) => touchedFields.add(field.id));
-        touchedFields.add(photoInput.id);
+        hideFeedback(feedbackElement);
 
-        const data = collectFormData(textFields);
-        const allErrors = computeErrors(descriptors, data, { photoError: state.photoError });
-        applyErrors(fields, touchedFields, allErrors);
+        const formData = collectFormData(vcardForm);
+        const validationErrors = validateFormData(formData);
 
-        if (Object.keys(allErrors).length > 0) {
-            feedback.textContent = 'Bitte korrigiere die markierten Felder.';
-            feedback.classList.remove('success');
-            clearQRCode(qrContainer, qrDownloadButton);
-            const vcfState = buildVcfPreviewState(data, allErrors, '');
-            updateVCFPreview(vcfPreviewElement, vcfState);
+        if (validationErrors.length > 0) {
+            showFeedback(feedbackElement, validationErrors.join('\n'), 'error');
             return;
+        }
+
+        try {
+            const vcfContent = await createVCFString(formData);
+            const fileName = buildFileName(formData);
+            downloadVCF(vcfContent, fileName);
+            showFeedback(feedbackElement, 'vCard erfolgreich generiert. Der Download wurde gestartet.', 'success');
+        } catch (error) {
+            console.error('Fehler beim Erstellen der vCard:', error);
+            showFeedback(feedbackElement, 'Das Foto konnte nicht verarbeitet werden. Bitte wähle eine kleinere Datei oder lasse das Foto weg.', 'error');
         }
 
         const vcf = createVCFString({ ...data, photo: state.photo });
@@ -174,59 +33,90 @@ document.addEventListener('DOMContentLoaded', () => {
         feedback.textContent = 'vCard erfolgreich erstellt und heruntergeladen.';
         feedback.classList.add('success');
         updateQRCode(qrContainer, qrDownloadButton, vcf);
-        const vcfState = buildVcfPreviewState(data, allErrors, vcf);
-        updateVCFPreview(vcfPreviewElement, vcfState);
     });
 
     refreshUI();
 });
 
-function collectFormData(fields) {
+function collectFormData(form) {
+    const fieldIds = [
+        'prefix', 'firstName', 'middleName', 'lastName', 'suffix', 'nickname', 'birthday',
+        'company', 'title', 'website', 'calendar',
+        'emailHome', 'emailWork',
+        'phoneMobile', 'phoneHome', 'phoneWork', 'faxHome', 'faxWork',
+        'adrHomeStreet', 'adrHomeCity', 'adrHomeState', 'adrHomeZip', 'adrHomeCountry',
+        'adrWorkStreet', 'adrWorkCity', 'adrWorkState', 'adrWorkZip', 'adrWorkCountry',
+        'socialFacebook', 'socialTwitter', 'socialLinkedIn', 'socialInstagram', 'socialYoutube', 'socialTikTok',
+        'notes'
+    ];
+
     const data = {};
-    fields.forEach((field) => {
-        data[field.id] = field.value.trim();
+
+    fieldIds.forEach((id) => {
+        const element = form.elements[id];
+        if (!element) {
+            return;
+        }
+        data[id] = element.value.trim();
     });
+
+    const photoInput = form.elements.photo;
+    data.photoFile = photoInput && photoInput.files.length ? photoInput.files[0] : null;
+
     return data;
 }
 
-async function handlePhotoChange(input) {
-    const file = input.files && input.files[0];
-    if (!file) {
-        state.photo = null;
-        state.photoError = '';
-        setFieldError(input, '');
-        return;
+function validateFormData(data) {
+    const errors = [];
+
+    if (!data.firstName) {
+        errors.push('Bitte gib einen Vornamen ein.');
     }
 
-    const validationMessage = validatePhotoFile(file);
-    if (validationMessage) {
-        state.photoError = validationMessage;
-        state.photo = null;
-        setFieldError(input, validationMessage);
-        return;
+    if (!data.lastName) {
+        errors.push('Bitte gib einen Nachnamen ein.');
     }
 
-    try {
-        const photoData = await readPhoto(file);
-        state.photo = photoData;
-        state.photoError = '';
-        setFieldError(input, '');
-    } catch (error) {
-        const message = 'Bild konnte nicht gelesen werden. Bitte erneut versuchen.';
-        console.error('Fehler beim Einlesen des Bildes', error);
-        state.photo = null;
-        state.photoError = message;
-        setFieldError(input, message);
+    if (data.photoFile && data.photoFile.size > MAX_PHOTO_SIZE_BYTES) {
+        const sizeInKb = Math.round(data.photoFile.size / 1024);
+        errors.push(`Das Foto ist zu groß (${sizeInKb} KB). Bitte verwende eine Datei mit höchstens 224 KB.`);
+    }
+
+    return errors;
+}
+
+function showFeedback(element, message, type) {
+    element.textContent = message;
+    element.classList.remove('form-feedback--error', 'form-feedback--success');
+    element.classList.add('form-feedback', 'is-visible');
+
+    if (type === 'error') {
+        element.classList.add('form-feedback--error');
+    } else {
+        element.classList.add('form-feedback--success');
     }
 }
 
-function applyErrors(fields, touchedFields, errors) {
-    const ids = new Set();
-    fields.forEach((field) => {
-        if (touchedFields instanceof Set) {
-            if (!touchedFields.has(field.id)) {
-                return;
-            }
+function hideFeedback(element) {
+    element.textContent = '';
+    element.classList.remove('is-visible', 'form-feedback--error', 'form-feedback--success');
+}
+
+async function createVCFString(data) {
+    const lines = [];
+    lines.push('BEGIN:VCARD');
+    lines.push('VERSION:3.0');
+
+    buildNameSection(lines, data);
+    buildProfessionalSection(lines, data);
+    buildCommunicationSection(lines, data);
+    buildAddressSection(lines, data);
+    buildSocialSection(lines, data);
+
+    if (data.photoFile) {
+        const photoLine = await buildPhotoLine(data.photoFile);
+        if (photoLine) {
+            lines.push(photoLine);
         }
         ids.add(field.id);
     });
@@ -235,114 +125,171 @@ function applyErrors(fields, touchedFields, errors) {
         ids.add('photo');
     }
 
-    ids.forEach((id) => {
-        if (id === 'photo') {
-            const field = document.getElementById('photo');
-            const message = errors[id] || '';
-            setFieldError(field, message);
-            return;
-        }
+    lines.push('END:VCARD');
+    return lines.join('\r\n');
+}
 
-        const field = document.getElementById(id);
-        if (!field) {
-            return;
-        }
-        const message = errors[id] || '';
-        setFieldError(field, message);
+function buildNameSection(lines, data) {
+    const nParts = [
+        escapeVCF(data.lastName),
+        escapeVCF(data.firstName),
+        escapeVCF(data.middleName),
+        escapeVCF(data.prefix),
+        escapeVCF(data.suffix)
+    ];
+
+    lines.push(`N:${nParts.join(';')}`);
+
+    const formattedName = [data.prefix, data.firstName, data.middleName, data.lastName, data.suffix]
+        .filter(Boolean)
+        .join(' ');
+
+    if (formattedName) {
+        lines.push(`FN:${escapeVCF(formattedName)}`);
+    }
+
+    addField(lines, 'NICKNAME', data.nickname);
+
+    if (data.birthday) {
+        lines.push(`BDAY:${data.birthday}`);
+    }
+}
+
+function buildProfessionalSection(lines, data) {
+    addField(lines, 'ORG', data.company);
+    addField(lines, 'TITLE', data.title);
+    addField(lines, 'URL', data.website);
+    addField(lines, 'CALURI', data.calendar);
+    addField(lines, 'NOTE', data.notes);
+}
+
+function buildCommunicationSection(lines, data) {
+    addField(lines, 'EMAIL;TYPE=HOME', data.emailHome);
+    addField(lines, 'EMAIL;TYPE=WORK', data.emailWork);
+
+    addField(lines, 'TEL;TYPE=CELL', data.phoneMobile);
+    addField(lines, 'TEL;TYPE=HOME', data.phoneHome);
+    addField(lines, 'TEL;TYPE=WORK', data.phoneWork);
+    addField(lines, 'TEL;TYPE=FAX,HOME', data.faxHome);
+    addField(lines, 'TEL;TYPE=FAX,WORK', data.faxWork);
+}
+
+function buildAddressSection(lines, data) {
+    const homeAddress = buildAddressValues({
+        street: data.adrHomeStreet,
+        city: data.adrHomeCity,
+        state: data.adrHomeState,
+        zip: data.adrHomeZip,
+        country: data.adrHomeCountry
     });
-}
 
-function setFieldError(field, message) {
-    if (!field) return;
-    const errorElement = document.getElementById(`${field.id}-error`);
-    if (!errorElement) return;
-
-    if (message) {
-        errorElement.textContent = message;
-        errorElement.classList.add('active');
-        field.classList.add('invalid');
-    } else {
-        errorElement.textContent = '';
-        errorElement.classList.remove('active');
-        field.classList.remove('invalid');
+    if (homeAddress.addressLine) {
+        lines.push(`ADR;TYPE=HOME:${homeAddress.addressLine}`);
     }
-}
 
-function initFieldErrors(fields) {
-    fields.forEach((field) => {
-        if (document.getElementById(`${field.id}-error`)) {
-            return;
-        }
-        const error = document.createElement('p');
-        error.id = `${field.id}-error`;
-        error.className = 'field-error';
-        field.insertAdjacentElement('afterend', error);
+    if (homeAddress.label) {
+        lines.push(`LABEL;TYPE=HOME:${escapeVCF(homeAddress.label)}`);
+    }
+
+    const workAddress = buildAddressValues({
+        street: data.adrWorkStreet,
+        city: data.adrWorkCity,
+        state: data.adrWorkState,
+        zip: data.adrWorkZip,
+        country: data.adrWorkCountry
     });
-}
 
-function updatePreview(previewEls, model) {
-    previewEls.name.textContent = model.name;
+    if (workAddress.addressLine) {
+        lines.push(`ADR;TYPE=WORK:${workAddress.addressLine}`);
+    }
 
-    previewEls.role.textContent = model.role;
-    previewEls.role.hidden = !model.showRole;
-
-    previewEls.company.textContent = model.company;
-    previewEls.company.hidden = !model.showCompany;
-
-    renderList(previewEls.contactList, model.contactItems);
-    previewEls.contactSection.hidden = model.contactItems.length === 0;
-
-    renderList(previewEls.addressList, model.addressItems);
-    previewEls.addressSection.hidden = model.addressItems.length === 0;
-
-    renderList(previewEls.socialList, model.socialItems);
-    previewEls.socialSection.hidden = model.socialItems.length === 0;
-
-    if (model.showNotes) {
-        previewEls.notes.textContent = model.notes;
-        previewEls.notesSection.hidden = false;
-    } else {
-        previewEls.notes.textContent = '';
-        previewEls.notesSection.hidden = true;
+    if (workAddress.label) {
+        lines.push(`LABEL;TYPE=WORK:${escapeVCF(workAddress.label)}`);
     }
 }
 
-function updateVCFPreview(element, state) {
-    if (!element) return;
+function buildSocialSection(lines, data) {
+    addSocial(lines, 'facebook', data.socialFacebook);
+    addSocial(lines, 'twitter', data.socialTwitter);
+    addSocial(lines, 'linkedin', data.socialLinkedIn);
+    addSocial(lines, 'instagram', data.socialInstagram);
+    addSocial(lines, 'youtube', data.socialYoutube);
+    addSocial(lines, 'tiktok', data.socialTikTok);
+}
 
-    element.textContent = state.text;
-    if (state.placeholder) {
-        element.classList.add('placeholder');
-    } else {
-        element.classList.remove('placeholder');
+async function buildPhotoLine(photoFile) {
+    try {
+        const photoData = await readPhoto(photoFile);
+        if (!photoData) {
+            return '';
+        }
+
+        const line = `PHOTO;ENCODING=b64;TYPE=${photoData.type}:${photoData.base64}`;
+        return foldLine(line);
+    } catch (error) {
+        throw new Error(`Bild konnte nicht gelesen werden: ${error.message}`);
     }
 }
 
-function renderList(element, items) {
-    element.innerHTML = '';
-    if (!items.length) {
+function buildAddressValues({ street, city, state, zip, country }) {
+    const addressParts = [
+        '',
+        '',
+        escapeVCF(street),
+        escapeVCF(city),
+        escapeVCF(state),
+        escapeVCF(zip),
+        escapeVCF(country)
+    ];
+
+    const value = addressParts.join(';');
+    const hasContent = addressParts.some((part) => part && part.trim().length > 0);
+
+    const labelParts = [street, [zip, city].filter(Boolean).join(' '), country].filter(Boolean);
+    const label = labelParts.join('\n');
+
+    return {
+        addressLine: hasContent ? value : '',
+        label
+    };
+}
+
+function addField(lines, key, value) {
+    if (!value) {
         return;
     }
-    const fragment = document.createDocumentFragment();
-    items.forEach((item) => {
-        const li = document.createElement('li');
-        li.textContent = item;
-        fragment.appendChild(li);
-    });
-    element.appendChild(fragment);
+    lines.push(`${key}:${escapeVCF(value)}`);
 }
 
-function createDescriptor(field) {
-    let type = field.type;
-    if (!type || type === 'textarea') {
-        type = 'text';
+function addSocial(lines, type, value) {
+    if (!value) {
+        return;
     }
-    return {
-        id: field.id,
-        type,
-        required: Boolean(field.required),
-        socialHandle: field.id.startsWith('social') && type !== 'url',
-    };
+
+    let url = value.trim();
+
+    if (!url.startsWith('http')) {
+        switch (type) {
+            case 'twitter':
+                url = `https://x.com/${url.replace(/^@/, '')}`;
+                break;
+            case 'instagram':
+                url = `https://instagram.com/${url.replace(/^@/, '')}`;
+                break;
+            case 'tiktok':
+                url = `https://tiktok.com/@${url.replace(/^@/, '')}`;
+                break;
+            case 'facebook':
+                url = `https://facebook.com/${url}`;
+                break;
+            case 'youtube':
+                url = `https://youtube.com/@${url.replace(/^@/, '')}`;
+                break;
+            default:
+                url = `https://${type}.com/${url}`;
+        }
+    });
+    return items;
 }
 
 function updateQRCode(container, downloadButton, value) {
@@ -511,38 +458,19 @@ function addSocial(lines, type, value) {
         return;
     }
 
-    let url;
-    const clean = value.replace(/^@/, '');
-    switch (type) {
-        case 'twitter':
-            url = `https://x.com/${clean}`;
-            break;
-        case 'instagram':
-            url = `https://instagram.com/${clean}`;
-            break;
-        case 'tiktok':
-            url = `https://tiktok.com/@${clean}`;
-            break;
-        case 'facebook':
-            url = `https://facebook.com/${clean}`;
-            break;
-        case 'youtube':
-            url = `https://youtube.com/${clean}`;
-            break;
-        default:
-            url = `https://${type}.com/${clean}`;
-            break;
-    }
-    lines.push(foldLine(`X-SOCIALPROFILE;TYPE=${type}:${escapeVCF(url)}`));
+    lines.push(`X-SOCIALPROFILE;TYPE=${type}:${escapeVCF(url)}`);
 }
 
 function escapeVCF(text) {
-    if (!text) return '';
+    if (!text) {
+        return '';
+    }
+
     return text
         .replace(/\\/g, '\\\\')
-        .replace(/\n/g, '\\n')
+        .replace(/,/g, '\\,')
         .replace(/;/g, '\\;')
-        .replace(/,/g, '\\,');
+        .replace(/\r?\n/g, '\\n');
 }
 
 function foldLine(line) {
@@ -552,40 +480,18 @@ function foldLine(line) {
     }
     let result = '';
     let index = 0;
+
     while (index < line.length) {
         if (index === 0) {
-            result += line.substring(index, index + maxLength);
-            index += maxLength;
+            result += line.substring(index, index + maxLineLength);
+            index += maxLineLength;
         } else {
-            result += `\r\n ${line.substring(index, index + maxLength - 1)}`;
-            index += maxLength - 1;
+            result += `\r\n ` + line.substring(index, index + maxLineLength - 1);
+            index += maxLineLength - 1;
         }
     }
+
     return result;
-}
-
-function formatDateForVCF(value) {
-    if (!value) {
-        return '';
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return value.replace(/-/g, '');
-    }
-    return value;
-}
-
-function readPhoto(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = event.target.result;
-            const base64 = dataUrl.split(',')[1];
-            const type = file.type.split('/')[1].toUpperCase();
-            resolve({ base64, type });
-        };
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(file);
-    });
 }
 
 function downloadVCF(content, fileName) {
@@ -600,12 +506,35 @@ function downloadVCF(content, fileName) {
     URL.revokeObjectURL(url);
 }
 
-function downloadDataUrl(dataUrl, fileName) {
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+function buildFileName(data) {
+    const rawName = [data.firstName, data.lastName].filter(Boolean).join('_') || 'kontakt';
+    const normalized = rawName
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const safeName = normalized || 'kontakt';
+    return `${safeName}.vcf`;
 }
 
+function readPhoto(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+            const dataUrl = event.target.result;
+            const base64String = dataUrl.split(',')[1];
+            const type = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';')).split('/')[1].toUpperCase();
+
+            resolve({ base64: base64String, type });
+        };
+
+        reader.onerror = (error) => {
+            reject(error);
+        };
+
+        reader.readAsDataURL(file);
+    });
+}
