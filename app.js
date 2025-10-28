@@ -1,268 +1,314 @@
+const MAX_PHOTO_SIZE_BYTES = 224 * 1024;
+
 document.addEventListener('DOMContentLoaded', () => {
-    
     const vcardForm = document.getElementById('vcard-form');
-    
-    // Wir machen die Event-Listener-Funktion "async", 
-    // damit wir auf das Einlesen des Bildes warten können ("await").
+    const feedbackElement = document.getElementById('form-feedback');
+
     vcardForm.addEventListener('submit', async (event) => {
-        // Verhindert das Neuladen der Seite
         event.preventDefault();
 
-        // 1. Alle Daten aus dem Formular auslesen
-        const data = {
-            prefix: document.getElementById('prefix').value,
-            firstName: document.getElementById('firstName').value,
-            middleName: document.getElementById('middleName').value,
-            lastName: document.getElementById('lastName').value,
-            suffix: document.getElementById('suffix').value,
-            nickname: document.getElementById('nickname').value,
-            
-            company: document.getElementById('company').value,
-            title: document.getElementById('title').value,
-            website: document.getElementById('website').value,
-            calendar: document.getElementById('calendar').value,
-            
-            emailHome: document.getElementById('emailHome').value,
-            emailWork: document.getElementById('emailWork').value,
-            
-            phoneMobile: document.getElementById('phoneMobile').value,
-            phoneHome: document.getElementById('phoneHome').value,
-            phoneWork: document.getElementById('phoneWork').value,
-            faxHome: document.getElementById('faxHome').value,
-            faxWork: document.getElementById('faxWork').value,
-            
-            adrHomeStreet: document.getElementById('adrHomeStreet').value,
-            adrHomeCity: document.getElementById('adrHomeCity').value,
-            adrHomeState: document.getElementById('adrHomeState').value,
-            adrHomeZip: document.getElementById('adrHomeZip').value,
-            adrHomeCountry: document.getElementById('adrHomeCountry').value,
-            
-            adrWorkStreet: document.getElementById('adrWorkStreet').value,
-            adrWorkCity: document.getElementById('adrWorkCity').value,
-            adrWorkState: document.getElementById('adrWorkState').value,
-            adrWorkZip: document.getElementById('adrWorkZip').value,
-            adrWorkCountry: document.getElementById('adrWorkCountry').value,
-            
-            photoFile: document.getElementById('photo').files[0], // Das Datei-Objekt
-            
-            socialFacebook: document.getElementById('socialFacebook').value,
-            socialTwitter: document.getElementById('socialTwitter').value,
-            socialLinkedIn: document.getElementById('socialLinkedIn').value,
-            socialInstagram: document.getElementById('socialInstagram').value,
-            socialYoutube: document.getElementById('socialYoutube').value,
-            socialTikTok: document.getElementById('socialTikTok').value,
-            
-            notes: document.getElementById('notes').value,
-        };
+        hideFeedback(feedbackElement);
+
+        const formData = collectFormData(vcardForm);
+        const validationErrors = validateFormData(formData);
+
+        if (validationErrors.length > 0) {
+            showFeedback(feedbackElement, validationErrors.join('\n'), 'error');
+            return;
+        }
 
         try {
-            // 2. Den VCF-String mit den Daten generieren (wartet auf Foto)
-            const vcfContent = await createVCFString(data);
-            
-            // 3. Download-Funktion aufrufen
-            const fileName = `${data.firstName}_${data.lastName}.vcf`.replace(/ /g, '_');
+            const vcfContent = await createVCFString(formData);
+            const fileName = buildFileName(formData);
             downloadVCF(vcfContent, fileName);
-
+            showFeedback(feedbackElement, 'vCard erfolgreich generiert. Der Download wurde gestartet.', 'success');
         } catch (error) {
-            console.error("Fehler beim Erstellen der vCard:", error);
-            alert("Fehler beim Verarbeiten des Bildes. Bitte versuche es erneut oder lasse das Bild weg.");
+            console.error('Fehler beim Erstellen der vCard:', error);
+            showFeedback(feedbackElement, 'Das Foto konnte nicht verarbeitet werden. Bitte wähle eine kleinere Datei oder lasse das Foto weg.', 'error');
         }
     });
 });
 
+function collectFormData(form) {
+    const fieldIds = [
+        'prefix', 'firstName', 'middleName', 'lastName', 'suffix', 'nickname', 'birthday',
+        'company', 'title', 'website', 'calendar',
+        'emailHome', 'emailWork',
+        'phoneMobile', 'phoneHome', 'phoneWork', 'faxHome', 'faxWork',
+        'adrHomeStreet', 'adrHomeCity', 'adrHomeState', 'adrHomeZip', 'adrHomeCountry',
+        'adrWorkStreet', 'adrWorkCity', 'adrWorkState', 'adrWorkZip', 'adrWorkCountry',
+        'socialFacebook', 'socialTwitter', 'socialLinkedIn', 'socialInstagram', 'socialYoutube', 'socialTikTok',
+        'notes'
+    ];
 
-/**
- * Hauptfunktion, die den VCF 3.0 String zusammenbaut.
- * @param {object} data - Das Objekt mit allen Formulardaten
- * @returns {Promise<string>} - Der fertige VCF-String
- */
-async function createVCFString(data) {
-    let vcfLines = [];
+    const data = {};
 
-    vcfLines.push("BEGIN:VCARD");
-    vcfLines.push("VERSION:3.0");
-
-    // N (Name) - ; getrennt: Nachname;Vorname;Zweitname;Prefix;Suffix
-    const n = `${data.lastName};${data.firstName};${data.middleName};${data.prefix};${data.suffix}`;
-    vcfLines.push(`N:${n}`);
-    
-    // FN (Formatted Name)
-    vcfLines.push(`FN:${data.firstName} ${data.lastName}`);
-    
-    // Optionale Felder hinzufügen
-    addField(vcfLines, "NICKNAME", data.nickname);
-    addField(vcfLines, "ORG", data.company);
-    addField(vcfLines, "TITLE", data.title);
-    addField(vcfLines, "URL", data.website);
-    addField(vcfLines, "CALURI", data.calendar);
-    addField(vcfLines, "NOTE", escapeVCF(data.notes));
-
-    // Emails
-    addField(vcfLines, "EMAIL;TYPE=HOME", data.emailHome);
-    addField(vcfLines, "EMAIL;TYPE=WORK", data.emailWork);
-
-    // Telefone
-    addField(vcfLines, "TEL;TYPE=CELL", data.phoneMobile);
-    addField(vcfLines, "TEL;TYPE=HOME", data.phoneHome);
-    addField(vcfLines, "TEL;TYPE=WORK", data.phoneWork);
-    addField(vcfLines, "TEL;TYPE=FAX,HOME", data.faxHome);
-    addField(vcfLines, "TEL;TYPE=FAX,WORK", data.faxWork);
-
-    // Adressen: ADR;TYPE=HOME:;;Straße;Stadt;Bundesland;PLZ;Land
-    const adrHome = `;;${data.adrHomeStreet};${data.adrHomeCity};${data.adrHomeState};${data.adrHomeZip};${data.adrHomeCountry}`;
-    if (adrHome.replace(/;/g, '').length > 0) {
-        vcfLines.push(`ADR;TYPE=HOME:${adrHome}`);
-    }
-    
-    const adrWork = `;;${data.adrWorkStreet};${data.adrWorkCity};${data.adrWorkState};${data.adrWorkZip};${data.adrWorkCountry}`;
-    if (adrWork.replace(/;/g, '').length > 0) {
-        vcfLines.push(`ADR;TYPE=WORK:${adrWork}`);
-    }
-
-    // Social Media (X-SOCIALPROFILE ist ein gängiger Standard)
-    addSocial(vcfLines, "facebook", data.socialFacebook);
-    addSocial(vcfLines, "twitter", data.socialTwitter);
-    addSocial(vcfLines, "linkedin", data.socialLinkedIn);
-    addSocial(vcfLines, "instagram", data.socialInstagram);
-    addSocial(vcfLines, "youtube", data.socialYoutube);
-    addSocial(vcfLines, "tiktok", data.socialTikTok);
-
-    // --- FOTO VERARBEITUNG ---
-    if (data.photoFile) {
-        try {
-            const photoData = await readPhoto(data.photoFile);
-            if (photoData) {
-                // Zeile muss gefaltet werden, da Base64 sehr lang ist
-                const photoLine = `PHOTO;ENCODING=b64;TYPE=${photoData.type}:${photoData.base64}`;
-                vcfLines.push(foldLine(photoLine));
-            }
-        } catch (error) {
-            // Wirft den Fehler, der oben im "submit" handler gefangen wird
-            throw new Error(`Bild konnte nicht gelesen werden: ${error.message}`);
+    fieldIds.forEach((id) => {
+        const element = form.elements[id];
+        if (!element) {
+            return;
         }
-    }
-
-    vcfLines.push("END:VCARD");
-    
-    // Alle Zeilen mit (Windows/Standard) Zeilenumbruch verbinden
-    return vcfLines.join("\r\n");
-}
-
-/**
- * Liest eine Bilddatei ein und gibt sie als Base64-String zurück.
- * @param {File} file - Die Bilddatei aus dem Input
- * @returns {Promise<object|null>} - Objekt mit { base64, type }
- */
-function readPhoto(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = (event) => {
-            const dataUrl = event.target.result; // z.B. "data:image/jpeg;base64,ABC..."
-            
-            // Prefix (z.B. "data:image/jpeg;base64,") entfernen
-            const base64String = dataUrl.split(',')[1];
-            
-            // Bildtyp (z.B. "jpeg") extrahieren
-            const type = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';')).split('/')[1].toUpperCase();
-            
-            resolve({ base64: base64String, type: type });
-        };
-        
-        reader.onerror = (error) => {
-            reject(error);
-        };
-        
-        // Beginnt das asynchrone Einlesen der Datei
-        reader.readAsDataURL(file);
+        data[id] = element.value.trim();
     });
+
+    const photoInput = form.elements.photo;
+    data.photoFile = photoInput && photoInput.files.length ? photoInput.files[0] : null;
+
+    return data;
 }
 
+function validateFormData(data) {
+    const errors = [];
 
-// --- HILFSFUNKTIONEN ---
+    if (!data.firstName) {
+        errors.push('Bitte gib einen Vornamen ein.');
+    }
 
-/**
- * Fügt eine Zeile nur hinzu, wenn der Wert existiert.
- * @param {string[]} lines - Das Array der VCF-Zeilen
- * @param {string} key - Der VCF-Schlüssel (z.B. "ORG")
- * @param {string} value - Der Wert aus dem Formular
- */
-function addField(lines, key, value) {
-    if (value) {
-        lines.push(`${key}:${value}`);
+    if (!data.lastName) {
+        errors.push('Bitte gib einen Nachnamen ein.');
+    }
+
+    if (data.photoFile && data.photoFile.size > MAX_PHOTO_SIZE_BYTES) {
+        const sizeInKb = Math.round(data.photoFile.size / 1024);
+        errors.push(`Das Foto ist zu groß (${sizeInKb} KB). Bitte verwende eine Datei mit höchstens 224 KB.`);
+    }
+
+    return errors;
+}
+
+function showFeedback(element, message, type) {
+    element.textContent = message;
+    element.classList.remove('form-feedback--error', 'form-feedback--success');
+    element.classList.add('form-feedback', 'is-visible');
+
+    if (type === 'error') {
+        element.classList.add('form-feedback--error');
+    } else {
+        element.classList.add('form-feedback--success');
     }
 }
 
-/**
- * Fügt Social-Media-Profile hinzu.
- * @param {string[]} lines - Das Array der VCF-Zeilen
- * @param {string} type - Der Typ (z.B. "facebook")
- * @param {string} value - Der Wert (Username oder URL)
- */
-function addSocial(lines, type, value) {
-    if (value) {
-        // vCard 4.0 Standard (von iOS/Google unterstützt)
-        if (value.startsWith('http')) {
-             lines.push(`X-SOCIALPROFILE;TYPE=${type}:${value}`);
-        } else {
-            // Bessere Kompatibilität, wenn es keine volle URL ist
-            let url;
-            switch(type) {
-                case 'twitter': url = `https://x.com/${value.replace('@', '')}`; break;
-                case 'instagram': url = `https://instagram.com/${value}`; break;
-                case 'tiktok': url = `https://tiktok.com/@${value.replace('@', '')}`; break;
-                case 'facebook': url = `https://facebook.com/${value}`; break;
-                default: url = `https://${type}.com/${value}`;
-            }
-             lines.push(`X-SOCIALPROFILE;TYPE=${type}:${url}`);
+function hideFeedback(element) {
+    element.textContent = '';
+    element.classList.remove('is-visible', 'form-feedback--error', 'form-feedback--success');
+}
+
+async function createVCFString(data) {
+    const lines = [];
+    lines.push('BEGIN:VCARD');
+    lines.push('VERSION:3.0');
+
+    buildNameSection(lines, data);
+    buildProfessionalSection(lines, data);
+    buildCommunicationSection(lines, data);
+    buildAddressSection(lines, data);
+    buildSocialSection(lines, data);
+
+    if (data.photoFile) {
+        const photoLine = await buildPhotoLine(data.photoFile);
+        if (photoLine) {
+            lines.push(photoLine);
         }
     }
+
+    lines.push('END:VCARD');
+    return lines.join('\r\n');
 }
 
-/**
- * Escaped Sonderzeichen für VCF.
- * \ -> \\
- * , -> \,
- * ; -> \;
- * \n -> \N (als Text-Newline)
- * @param {string} text
- */
+function buildNameSection(lines, data) {
+    const nParts = [
+        escapeVCF(data.lastName),
+        escapeVCF(data.firstName),
+        escapeVCF(data.middleName),
+        escapeVCF(data.prefix),
+        escapeVCF(data.suffix)
+    ];
+
+    lines.push(`N:${nParts.join(';')}`);
+
+    const formattedName = [data.prefix, data.firstName, data.middleName, data.lastName, data.suffix]
+        .filter(Boolean)
+        .join(' ');
+
+    if (formattedName) {
+        lines.push(`FN:${escapeVCF(formattedName)}`);
+    }
+
+    addField(lines, 'NICKNAME', data.nickname);
+
+    if (data.birthday) {
+        lines.push(`BDAY:${data.birthday}`);
+    }
+}
+
+function buildProfessionalSection(lines, data) {
+    addField(lines, 'ORG', data.company);
+    addField(lines, 'TITLE', data.title);
+    addField(lines, 'URL', data.website);
+    addField(lines, 'CALURI', data.calendar);
+    addField(lines, 'NOTE', data.notes);
+}
+
+function buildCommunicationSection(lines, data) {
+    addField(lines, 'EMAIL;TYPE=HOME', data.emailHome);
+    addField(lines, 'EMAIL;TYPE=WORK', data.emailWork);
+
+    addField(lines, 'TEL;TYPE=CELL', data.phoneMobile);
+    addField(lines, 'TEL;TYPE=HOME', data.phoneHome);
+    addField(lines, 'TEL;TYPE=WORK', data.phoneWork);
+    addField(lines, 'TEL;TYPE=FAX,HOME', data.faxHome);
+    addField(lines, 'TEL;TYPE=FAX,WORK', data.faxWork);
+}
+
+function buildAddressSection(lines, data) {
+    const homeAddress = buildAddressValues({
+        street: data.adrHomeStreet,
+        city: data.adrHomeCity,
+        state: data.adrHomeState,
+        zip: data.adrHomeZip,
+        country: data.adrHomeCountry
+    });
+
+    if (homeAddress.addressLine) {
+        lines.push(`ADR;TYPE=HOME:${homeAddress.addressLine}`);
+    }
+
+    if (homeAddress.label) {
+        lines.push(`LABEL;TYPE=HOME:${escapeVCF(homeAddress.label)}`);
+    }
+
+    const workAddress = buildAddressValues({
+        street: data.adrWorkStreet,
+        city: data.adrWorkCity,
+        state: data.adrWorkState,
+        zip: data.adrWorkZip,
+        country: data.adrWorkCountry
+    });
+
+    if (workAddress.addressLine) {
+        lines.push(`ADR;TYPE=WORK:${workAddress.addressLine}`);
+    }
+
+    if (workAddress.label) {
+        lines.push(`LABEL;TYPE=WORK:${escapeVCF(workAddress.label)}`);
+    }
+}
+
+function buildSocialSection(lines, data) {
+    addSocial(lines, 'facebook', data.socialFacebook);
+    addSocial(lines, 'twitter', data.socialTwitter);
+    addSocial(lines, 'linkedin', data.socialLinkedIn);
+    addSocial(lines, 'instagram', data.socialInstagram);
+    addSocial(lines, 'youtube', data.socialYoutube);
+    addSocial(lines, 'tiktok', data.socialTikTok);
+}
+
+async function buildPhotoLine(photoFile) {
+    try {
+        const photoData = await readPhoto(photoFile);
+        if (!photoData) {
+            return '';
+        }
+
+        const line = `PHOTO;ENCODING=b64;TYPE=${photoData.type}:${photoData.base64}`;
+        return foldLine(line);
+    } catch (error) {
+        throw new Error(`Bild konnte nicht gelesen werden: ${error.message}`);
+    }
+}
+
+function buildAddressValues({ street, city, state, zip, country }) {
+    const addressParts = [
+        '',
+        '',
+        escapeVCF(street),
+        escapeVCF(city),
+        escapeVCF(state),
+        escapeVCF(zip),
+        escapeVCF(country)
+    ];
+
+    const value = addressParts.join(';');
+    const hasContent = addressParts.some((part) => part && part.trim().length > 0);
+
+    const labelParts = [street, [zip, city].filter(Boolean).join(' '), country].filter(Boolean);
+    const label = labelParts.join('\n');
+
+    return {
+        addressLine: hasContent ? value : '',
+        label
+    };
+}
+
+function addField(lines, key, value) {
+    if (!value) {
+        return;
+    }
+    lines.push(`${key}:${escapeVCF(value)}`);
+}
+
+function addSocial(lines, type, value) {
+    if (!value) {
+        return;
+    }
+
+    let url = value.trim();
+
+    if (!url.startsWith('http')) {
+        switch (type) {
+            case 'twitter':
+                url = `https://x.com/${url.replace(/^@/, '')}`;
+                break;
+            case 'instagram':
+                url = `https://instagram.com/${url.replace(/^@/, '')}`;
+                break;
+            case 'tiktok':
+                url = `https://tiktok.com/@${url.replace(/^@/, '')}`;
+                break;
+            case 'facebook':
+                url = `https://facebook.com/${url}`;
+                break;
+            case 'youtube':
+                url = `https://youtube.com/@${url.replace(/^@/, '')}`;
+                break;
+            default:
+                url = `https://${type}.com/${url}`;
+        }
+    }
+
+    lines.push(`X-SOCIALPROFILE;TYPE=${type}:${escapeVCF(url)}`);
+}
+
 function escapeVCF(text) {
-    if (!text) return "";
-    return text.replace(/\\/g, '\\\\')
-               .replace(/,/g, '\\,')
-               .replace(/;/g, '\\;')
-               .replace(/\n/g, '\\n');
+    if (!text) {
+        return '';
+    }
+
+    return text
+        .replace(/\\/g, '\\\\')
+        .replace(/,/g, '\\,')
+        .replace(/;/g, '\\;')
+        .replace(/\r?\n/g, '\\n');
 }
 
-/**
- * Faltet VCF-Zeilen nach 75 Zeichen (wichtig für Base64-Fotos).
- * @param {string} line - Die lange Zeile
- * @returns {string} - Die gefaltete Zeile (mit \r\n )
- */
 function foldLine(line) {
     const maxLineLength = 75;
     let result = '';
-    let i = 0;
-    while (i < line.length) {
-        if (i === 0) {
-            result += line.substring(i, i + maxLineLength);
-            i += maxLineLength;
+    let index = 0;
+
+    while (index < line.length) {
+        if (index === 0) {
+            result += line.substring(index, index + maxLineLength);
+            index += maxLineLength;
         } else {
-            // Jede folgende Zeile wird mit einem Leerzeichen eingerückt
-            result += "\r\n " + line.substring(i, i + maxLineLength - 1);
-            i += maxLineLength - 1;
+            result += `\r\n ` + line.substring(index, index + maxLineLength - 1);
+            index += maxLineLength - 1;
         }
     }
+
     return result;
 }
 
-/**
- * Löst den Download einer Textdatei im Browser aus.
- * (Unverändert von der V1)
- * @param {string} content - Der Inhalt der Datei (unser VCF-String)
- * @param {string} fileName - Der gewünschte Dateiname (z.B. "kontakt.vcf")
- */
 function downloadVCF(content, fileName) {
     const blob = new Blob([content], { type: 'text/vcard;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -273,4 +319,37 @@ function downloadVCF(content, fileName) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+}
+
+function buildFileName(data) {
+    const rawName = [data.firstName, data.lastName].filter(Boolean).join('_') || 'kontakt';
+    const normalized = rawName
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const safeName = normalized || 'kontakt';
+    return `${safeName}.vcf`;
+}
+
+function readPhoto(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+            const dataUrl = event.target.result;
+            const base64String = dataUrl.split(',')[1];
+            const type = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';')).split('/')[1].toUpperCase();
+
+            resolve({ base64: base64String, type });
+        };
+
+        reader.onerror = (error) => {
+            reject(error);
+        };
+
+        reader.readAsDataURL(file);
+    });
 }
