@@ -1,268 +1,727 @@
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^[0-9+()\-\s\/]+$/;
+const SOCIAL_HANDLE_REGEX = /^[^\s]+$/;
+const MAX_PHOTO_SIZE = 400 * 1024; // 400 KB
+
+const state = {
+    photo: null,
+    photoError: '',
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-    
-    const vcardForm = document.getElementById('vcard-form');
-    
-    // Wir machen die Event-Listener-Funktion "async", 
-    // damit wir auf das Einlesen des Bildes warten können ("await").
-    vcardForm.addEventListener('submit', async (event) => {
-        // Verhindert das Neuladen der Seite
+    const form = document.getElementById('vcard-form');
+    const feedback = document.getElementById('form-feedback');
+    const qrContainer = document.getElementById('qr-code');
+    const qrDownloadButton = document.getElementById('qr-download');
+
+    const fields = Array.from(form.querySelectorAll('input, textarea'));
+    const textFields = fields.filter((field) => field.type !== 'file');
+    const photoInput = form.querySelector('#photo');
+
+    const previewEls = {
+        name: document.getElementById('preview-name'),
+        role: document.getElementById('preview-role'),
+        company: document.getElementById('preview-company'),
+        contactSection: document.getElementById('preview-contact-section'),
+        contactList: document.getElementById('preview-contact'),
+        addressSection: document.getElementById('preview-address-section'),
+        addressList: document.getElementById('preview-address'),
+        socialSection: document.getElementById('preview-social-section'),
+        socialList: document.getElementById('preview-social'),
+        notesSection: document.getElementById('preview-notes-section'),
+        notes: document.getElementById('preview-notes'),
+    };
+
+    initFieldErrors(fields);
+
+    const workDependentFields = new Set([
+        'title',
+        'website',
+        'emailWork',
+        'phoneWork',
+        'faxWork',
+        'calendar',
+        'adrWorkStreet',
+        'adrWorkCity',
+        'adrWorkState',
+        'adrWorkZip',
+        'adrWorkCountry',
+    ]);
+
+    const touchedFields = new Set();
+
+    function refreshUI({ validateTouched = false } = {}) {
+        const data = collectFormData(textFields);
+        updatePreview(previewEls, data);
+
+        const allErrors = computeAllErrors(textFields, data);
+        if (validateTouched) {
+            applyErrors(fields, touchedFields, allErrors);
+        }
+
+        if (canGenerateQRCode(data, allErrors)) {
+            const vcf = createVCFString({ ...data, photo: state.photo });
+            updateQRCode(qrContainer, qrDownloadButton, vcf);
+        } else {
+            clearQRCode(qrContainer, qrDownloadButton);
+        }
+
+        if (feedback.textContent) {
+            feedback.textContent = '';
+            feedback.classList.remove('success');
+        }
+    }
+
+    fields.forEach((field) => {
+        if (field.type === 'file') {
+            field.addEventListener('change', async () => {
+                touchedFields.add(field.id);
+                await handlePhotoChange(field);
+                refreshUI({ validateTouched: true });
+            });
+            return;
+        }
+
+        field.addEventListener('input', () => {
+            if (workDependentFields.has(field.id)) {
+                touchedFields.add('company');
+            }
+
+            const data = collectFormData(textFields);
+            const allErrors = computeAllErrors(textFields, data);
+
+            if (touchedFields.has(field.id) || touchedFields.size > 0) {
+                applyErrors(fields, touchedFields, allErrors);
+            }
+
+            if (canGenerateQRCode(data, allErrors)) {
+                const vcf = createVCFString({ ...data, photo: state.photo });
+                updateQRCode(qrContainer, qrDownloadButton, vcf);
+            } else {
+                clearQRCode(qrContainer, qrDownloadButton);
+            }
+
+            updatePreview(previewEls, data);
+            if (feedback.textContent) {
+                feedback.textContent = '';
+                feedback.classList.remove('success');
+            }
+        });
+
+        field.addEventListener('blur', () => {
+            touchedFields.add(field.id);
+            if (workDependentFields.has(field.id)) {
+                touchedFields.add('company');
+            }
+
+            const data = collectFormData(textFields);
+            const allErrors = computeAllErrors(textFields, data);
+            applyErrors(fields, touchedFields, allErrors);
+
+            if (canGenerateQRCode(data, allErrors)) {
+                const vcf = createVCFString({ ...data, photo: state.photo });
+                updateQRCode(qrContainer, qrDownloadButton, vcf);
+            } else {
+                clearQRCode(qrContainer, qrDownloadButton);
+            }
+        });
+    });
+
+    qrDownloadButton.addEventListener('click', () => {
+        const dataUrl = getQRCodeDataUrl(qrContainer);
+        if (!dataUrl) {
+            return;
+        }
+        const data = collectFormData(textFields);
+        const fileName = `${buildSafeFileName(data)}-qr.png`;
+        downloadDataUrl(dataUrl, fileName);
+    });
+
+    form.addEventListener('submit', (event) => {
         event.preventDefault();
 
-        // 1. Alle Daten aus dem Formular auslesen
-        const data = {
-            prefix: document.getElementById('prefix').value,
-            firstName: document.getElementById('firstName').value,
-            middleName: document.getElementById('middleName').value,
-            lastName: document.getElementById('lastName').value,
-            suffix: document.getElementById('suffix').value,
-            nickname: document.getElementById('nickname').value,
-            
-            company: document.getElementById('company').value,
-            title: document.getElementById('title').value,
-            website: document.getElementById('website').value,
-            calendar: document.getElementById('calendar').value,
-            
-            emailHome: document.getElementById('emailHome').value,
-            emailWork: document.getElementById('emailWork').value,
-            
-            phoneMobile: document.getElementById('phoneMobile').value,
-            phoneHome: document.getElementById('phoneHome').value,
-            phoneWork: document.getElementById('phoneWork').value,
-            faxHome: document.getElementById('faxHome').value,
-            faxWork: document.getElementById('faxWork').value,
-            
-            adrHomeStreet: document.getElementById('adrHomeStreet').value,
-            adrHomeCity: document.getElementById('adrHomeCity').value,
-            adrHomeState: document.getElementById('adrHomeState').value,
-            adrHomeZip: document.getElementById('adrHomeZip').value,
-            adrHomeCountry: document.getElementById('adrHomeCountry').value,
-            
-            adrWorkStreet: document.getElementById('adrWorkStreet').value,
-            adrWorkCity: document.getElementById('adrWorkCity').value,
-            adrWorkState: document.getElementById('adrWorkState').value,
-            adrWorkZip: document.getElementById('adrWorkZip').value,
-            adrWorkCountry: document.getElementById('adrWorkCountry').value,
-            
-            photoFile: document.getElementById('photo').files[0], // Das Datei-Objekt
-            
-            socialFacebook: document.getElementById('socialFacebook').value,
-            socialTwitter: document.getElementById('socialTwitter').value,
-            socialLinkedIn: document.getElementById('socialLinkedIn').value,
-            socialInstagram: document.getElementById('socialInstagram').value,
-            socialYoutube: document.getElementById('socialYoutube').value,
-            socialTikTok: document.getElementById('socialTikTok').value,
-            
-            notes: document.getElementById('notes').value,
-        };
+        textFields.forEach((field) => touchedFields.add(field.id));
+        touchedFields.add(photoInput.id);
 
-        try {
-            // 2. Den VCF-String mit den Daten generieren (wartet auf Foto)
-            const vcfContent = await createVCFString(data);
-            
-            // 3. Download-Funktion aufrufen
-            const fileName = `${data.firstName}_${data.lastName}.vcf`.replace(/ /g, '_');
-            downloadVCF(vcfContent, fileName);
+        const data = collectFormData(textFields);
+        const allErrors = computeAllErrors(textFields, data);
+        applyErrors(fields, touchedFields, allErrors);
 
-        } catch (error) {
-            console.error("Fehler beim Erstellen der vCard:", error);
-            alert("Fehler beim Verarbeiten des Bildes. Bitte versuche es erneut oder lasse das Bild weg.");
+        if (Object.keys(allErrors).length > 0) {
+            feedback.textContent = 'Bitte korrigiere die markierten Felder.';
+            feedback.classList.remove('success');
+            clearQRCode(qrContainer, qrDownloadButton);
+            return;
         }
+
+        const vcf = createVCFString({ ...data, photo: state.photo });
+        const fileName = buildSafeFileName(data);
+        downloadVCF(vcf, `${fileName}.vcf`);
+        feedback.textContent = 'vCard erfolgreich erstellt und heruntergeladen.';
+        feedback.classList.add('success');
+        updateQRCode(qrContainer, qrDownloadButton, vcf);
     });
+
+    refreshUI();
 });
 
+function collectFormData(fields) {
+    const data = {};
+    fields.forEach((field) => {
+        data[field.id] = field.value.trim();
+    });
+    return data;
+}
 
-/**
- * Hauptfunktion, die den VCF 3.0 String zusammenbaut.
- * @param {object} data - Das Objekt mit allen Formulardaten
- * @returns {Promise<string>} - Der fertige VCF-String
- */
-async function createVCFString(data) {
-    let vcfLines = [];
-
-    vcfLines.push("BEGIN:VCARD");
-    vcfLines.push("VERSION:3.0");
-
-    // N (Name) - ; getrennt: Nachname;Vorname;Zweitname;Prefix;Suffix
-    const n = `${data.lastName};${data.firstName};${data.middleName};${data.prefix};${data.suffix}`;
-    vcfLines.push(`N:${n}`);
-    
-    // FN (Formatted Name)
-    vcfLines.push(`FN:${data.firstName} ${data.lastName}`);
-    
-    // Optionale Felder hinzufügen
-    addField(vcfLines, "NICKNAME", data.nickname);
-    addField(vcfLines, "ORG", data.company);
-    addField(vcfLines, "TITLE", data.title);
-    addField(vcfLines, "URL", data.website);
-    addField(vcfLines, "CALURI", data.calendar);
-    addField(vcfLines, "NOTE", escapeVCF(data.notes));
-
-    // Emails
-    addField(vcfLines, "EMAIL;TYPE=HOME", data.emailHome);
-    addField(vcfLines, "EMAIL;TYPE=WORK", data.emailWork);
-
-    // Telefone
-    addField(vcfLines, "TEL;TYPE=CELL", data.phoneMobile);
-    addField(vcfLines, "TEL;TYPE=HOME", data.phoneHome);
-    addField(vcfLines, "TEL;TYPE=WORK", data.phoneWork);
-    addField(vcfLines, "TEL;TYPE=FAX,HOME", data.faxHome);
-    addField(vcfLines, "TEL;TYPE=FAX,WORK", data.faxWork);
-
-    // Adressen: ADR;TYPE=HOME:;;Straße;Stadt;Bundesland;PLZ;Land
-    const adrHome = `;;${data.adrHomeStreet};${data.adrHomeCity};${data.adrHomeState};${data.adrHomeZip};${data.adrHomeCountry}`;
-    if (adrHome.replace(/;/g, '').length > 0) {
-        vcfLines.push(`ADR;TYPE=HOME:${adrHome}`);
-    }
-    
-    const adrWork = `;;${data.adrWorkStreet};${data.adrWorkCity};${data.adrWorkState};${data.adrWorkZip};${data.adrWorkCountry}`;
-    if (adrWork.replace(/;/g, '').length > 0) {
-        vcfLines.push(`ADR;TYPE=WORK:${adrWork}`);
+async function handlePhotoChange(input) {
+    const file = input.files && input.files[0];
+    if (!file) {
+        state.photo = null;
+        state.photoError = '';
+        setFieldError(input, '');
+        return;
     }
 
-    // Social Media (X-SOCIALPROFILE ist ein gängiger Standard)
-    addSocial(vcfLines, "facebook", data.socialFacebook);
-    addSocial(vcfLines, "twitter", data.socialTwitter);
-    addSocial(vcfLines, "linkedin", data.socialLinkedIn);
-    addSocial(vcfLines, "instagram", data.socialInstagram);
-    addSocial(vcfLines, "youtube", data.socialYoutube);
-    addSocial(vcfLines, "tiktok", data.socialTikTok);
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        const message = 'Nur JPG- oder PNG-Bilder werden unterstützt.';
+        state.photoError = message;
+        state.photo = null;
+        setFieldError(input, message);
+        return;
+    }
 
-    // --- FOTO VERARBEITUNG ---
-    if (data.photoFile) {
-        try {
-            const photoData = await readPhoto(data.photoFile);
-            if (photoData) {
-                // Zeile muss gefaltet werden, da Base64 sehr lang ist
-                const photoLine = `PHOTO;ENCODING=b64;TYPE=${photoData.type}:${photoData.base64}`;
-                vcfLines.push(foldLine(photoLine));
+    if (file.size > MAX_PHOTO_SIZE) {
+        const message = 'Das Bild ist zu groß (maximal 400 KB).';
+        state.photoError = message;
+        state.photo = null;
+        setFieldError(input, message);
+        return;
+    }
+
+    try {
+        const photoData = await readPhoto(file);
+        state.photo = photoData;
+        state.photoError = '';
+        setFieldError(input, '');
+    } catch (error) {
+        const message = 'Bild konnte nicht gelesen werden. Bitte erneut versuchen.';
+        console.error('Fehler beim Einlesen des Bildes', error);
+        state.photo = null;
+        state.photoError = message;
+        setFieldError(input, message);
+    }
+}
+
+function computeAllErrors(fields, data) {
+    const errors = {};
+
+    fields.forEach((field) => {
+        const message = computeFieldError(field, data);
+        if (message) {
+            errors[field.id] = message;
+        }
+    });
+
+    const crossErrors = computeCrossFieldErrors(data);
+    Object.assign(errors, crossErrors);
+
+    if (state.photoError) {
+        errors.photo = state.photoError;
+    }
+
+    return errors;
+}
+
+function computeFieldError(field, data) {
+    const value = data[field.id];
+
+    if (field.required && !value) {
+        return 'Dieses Feld ist erforderlich.';
+    }
+
+    if (!value) {
+        return '';
+    }
+
+    switch (field.type) {
+        case 'email':
+            if (!EMAIL_REGEX.test(value)) {
+                return 'Bitte gib eine gültige E-Mail-Adresse ein.';
             }
-        } catch (error) {
-            // Wirft den Fehler, der oben im "submit" handler gefangen wird
-            throw new Error(`Bild konnte nicht gelesen werden: ${error.message}`);
+            break;
+        case 'url':
+            try {
+                const url = new URL(value);
+                if (!['http:', 'https:'].includes(url.protocol)) {
+                    return 'Nur http- oder https-Links sind erlaubt.';
+                }
+                if (field.id === 'calendar' && url.protocol !== 'https:') {
+                    return 'Der Kalender-Link sollte per https erreichbar sein.';
+                }
+            } catch (error) {
+                return 'Bitte gib eine vollständige URL an.';
+            }
+            break;
+        case 'tel':
+            if (!PHONE_REGEX.test(value)) {
+                return 'Nur Ziffern, Leerzeichen, Klammern, +, - und / sind erlaubt.';
+            }
+            break;
+        default:
+            break;
+    }
+
+    if (field.id.startsWith('social') && field.type !== 'url') {
+        if (!SOCIAL_HANDLE_REGEX.test(value)) {
+            return 'Bitte gib den Benutzernamen ohne Leerzeichen ein.';
         }
     }
 
-    vcfLines.push("END:VCARD");
-    
-    // Alle Zeilen mit (Windows/Standard) Zeilenumbruch verbinden
-    return vcfLines.join("\r\n");
+    return '';
 }
 
-/**
- * Liest eine Bilddatei ein und gibt sie als Base64-String zurück.
- * @param {File} file - Die Bilddatei aus dem Input
- * @returns {Promise<object|null>} - Objekt mit { base64, type }
- */
-function readPhoto(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = (event) => {
-            const dataUrl = event.target.result; // z.B. "data:image/jpeg;base64,ABC..."
-            
-            // Prefix (z.B. "data:image/jpeg;base64,") entfernen
-            const base64String = dataUrl.split(',')[1];
-            
-            // Bildtyp (z.B. "jpeg") extrahieren
-            const type = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';')).split('/')[1].toUpperCase();
-            
-            resolve({ base64: base64String, type: type });
-        };
-        
-        reader.onerror = (error) => {
-            reject(error);
-        };
-        
-        // Beginnt das asynchrone Einlesen der Datei
-        reader.readAsDataURL(file);
+function computeCrossFieldErrors(data) {
+    const errors = {};
+    const workFields = [
+        'title',
+        'website',
+        'emailWork',
+        'phoneWork',
+        'faxWork',
+        'calendar',
+        'adrWorkStreet',
+        'adrWorkCity',
+        'adrWorkState',
+        'adrWorkZip',
+        'adrWorkCountry',
+    ];
+
+    const hasWorkInformation = workFields.some((key) => Boolean(data[key]));
+
+    if (hasWorkInformation && !data.company) {
+        errors.company = 'Bitte gib dein Unternehmen an, wenn du berufliche Angaben machst.';
+    }
+
+    return errors;
+}
+
+function applyErrors(fields, touchedFields, errors) {
+    const ids = new Set();
+    fields.forEach((field) => {
+        if (touchedFields instanceof Set) {
+            if (!touchedFields.has(field.id)) {
+                return;
+            }
+        }
+        ids.add(field.id);
+    });
+
+    if (touchedFields instanceof Set && touchedFields.has('photo')) {
+        ids.add('photo');
+    }
+
+    ids.forEach((id) => {
+        if (id === 'photo') {
+            const field = document.getElementById('photo');
+            const message = errors[id] || '';
+            setFieldError(field, message);
+            return;
+        }
+
+        const field = document.getElementById(id);
+        if (!field) {
+            return;
+        }
+        const message = errors[id] || '';
+        setFieldError(field, message);
     });
 }
 
+function setFieldError(field, message) {
+    if (!field) return;
+    const errorElement = document.getElementById(`${field.id}-error`);
+    if (!errorElement) return;
 
-// --- HILFSFUNKTIONEN ---
-
-/**
- * Fügt eine Zeile nur hinzu, wenn der Wert existiert.
- * @param {string[]} lines - Das Array der VCF-Zeilen
- * @param {string} key - Der VCF-Schlüssel (z.B. "ORG")
- * @param {string} value - Der Wert aus dem Formular
- */
-function addField(lines, key, value) {
-    if (value) {
-        lines.push(`${key}:${value}`);
+    if (message) {
+        errorElement.textContent = message;
+        errorElement.classList.add('active');
+        field.classList.add('invalid');
+    } else {
+        errorElement.textContent = '';
+        errorElement.classList.remove('active');
+        field.classList.remove('invalid');
     }
 }
 
-/**
- * Fügt Social-Media-Profile hinzu.
- * @param {string[]} lines - Das Array der VCF-Zeilen
- * @param {string} type - Der Typ (z.B. "facebook")
- * @param {string} value - Der Wert (Username oder URL)
- */
-function addSocial(lines, type, value) {
-    if (value) {
-        // vCard 4.0 Standard (von iOS/Google unterstützt)
-        if (value.startsWith('http')) {
-             lines.push(`X-SOCIALPROFILE;TYPE=${type}:${value}`);
-        } else {
-            // Bessere Kompatibilität, wenn es keine volle URL ist
-            let url;
-            switch(type) {
-                case 'twitter': url = `https://x.com/${value.replace('@', '')}`; break;
-                case 'instagram': url = `https://instagram.com/${value}`; break;
-                case 'tiktok': url = `https://tiktok.com/@${value.replace('@', '')}`; break;
-                case 'facebook': url = `https://facebook.com/${value}`; break;
-                default: url = `https://${type}.com/${value}`;
-            }
-             lines.push(`X-SOCIALPROFILE;TYPE=${type}:${url}`);
+function initFieldErrors(fields) {
+    fields.forEach((field) => {
+        if (document.getElementById(`${field.id}-error`)) {
+            return;
         }
+        const error = document.createElement('p');
+        error.id = `${field.id}-error`;
+        error.className = 'field-error';
+        field.insertAdjacentElement('afterend', error);
+    });
+}
+
+function canGenerateQRCode(data, errors) {
+    const hasRequired = Boolean(data.firstName) && Boolean(data.lastName);
+    if (!hasRequired) {
+        return false;
+    }
+    return Object.keys(errors).length === 0;
+}
+
+function updatePreview(previewEls, data) {
+    const fullName = [data.prefix, data.firstName, data.middleName, data.lastName, data.suffix]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+    previewEls.name.textContent = fullName || 'Name erscheint hier';
+
+    previewEls.role.textContent = data.title || '';
+    previewEls.role.hidden = !data.title;
+
+    previewEls.company.textContent = data.company || '';
+    previewEls.company.hidden = !data.company;
+
+    const contactItems = [];
+    if (data.emailWork) contactItems.push(`Geschäftlich: ${data.emailWork}`);
+    if (data.emailHome) contactItems.push(`Privat: ${data.emailHome}`);
+    if (data.phoneWork) contactItems.push(`Telefon (Arbeit): ${data.phoneWork}`);
+    if (data.phoneHome) contactItems.push(`Telefon (Privat): ${data.phoneHome}`);
+    if (data.phoneMobile) contactItems.push(`Mobil: ${data.phoneMobile}`);
+    if (data.faxWork) contactItems.push(`Fax (Arbeit): ${data.faxWork}`);
+    if (data.faxHome) contactItems.push(`Fax (Privat): ${data.faxHome}`);
+    if (data.website) contactItems.push(`Website: ${data.website}`);
+    if (data.calendar) contactItems.push(`Kalender: ${data.calendar}`);
+    if (data.birthday) contactItems.push(`Geburtstag: ${formatDateDisplay(data.birthday)}`);
+
+    renderList(previewEls.contactList, contactItems);
+    previewEls.contactSection.hidden = contactItems.length === 0;
+
+    const addressItems = [];
+    const homeAddress = formatAddressLabel('Privat', data.adrHomeStreet, data.adrHomeZip, data.adrHomeCity, data.adrHomeState, data.adrHomeCountry);
+    if (homeAddress) addressItems.push(homeAddress);
+    const workAddress = formatAddressLabel('Arbeit', data.adrWorkStreet, data.adrWorkZip, data.adrWorkCity, data.adrWorkState, data.adrWorkCountry);
+    if (workAddress) addressItems.push(workAddress);
+
+    renderList(previewEls.addressList, addressItems);
+    previewEls.addressSection.hidden = addressItems.length === 0;
+
+    const socialItems = buildSocialPreviewItems(data);
+    renderList(previewEls.socialList, socialItems);
+    previewEls.socialSection.hidden = socialItems.length === 0;
+
+    if (data.notes) {
+        previewEls.notes.textContent = data.notes;
+        previewEls.notesSection.hidden = false;
+    } else {
+        previewEls.notes.textContent = '';
+        previewEls.notesSection.hidden = true;
     }
 }
 
-/**
- * Escaped Sonderzeichen für VCF.
- * \ -> \\
- * , -> \,
- * ; -> \;
- * \n -> \N (als Text-Newline)
- * @param {string} text
- */
-function escapeVCF(text) {
-    if (!text) return "";
-    return text.replace(/\\/g, '\\\\')
-               .replace(/,/g, '\\,')
-               .replace(/;/g, '\\;')
-               .replace(/\n/g, '\\n');
+function renderList(element, items) {
+    element.innerHTML = '';
+    if (!items.length) {
+        return;
+    }
+    const fragment = document.createDocumentFragment();
+    items.forEach((item) => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        fragment.appendChild(li);
+    });
+    element.appendChild(fragment);
 }
 
-/**
- * Faltet VCF-Zeilen nach 75 Zeichen (wichtig für Base64-Fotos).
- * @param {string} line - Die lange Zeile
- * @returns {string} - Die gefaltete Zeile (mit \r\n )
- */
+function formatAddressLabel(label, street, zip, city, state, country) {
+    const lines = [street, [zip, city].filter(Boolean).join(' '), [state, country].filter(Boolean).join(', ')].filter(Boolean);
+    if (!lines.length) {
+        return '';
+    }
+    return `${label}: ${lines.join(' | ')}`;
+}
+
+function formatDateDisplay(value) {
+    try {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return value;
+        }
+        return date.toLocaleDateString('de-DE', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
+    } catch (error) {
+        return value;
+    }
+}
+
+function buildSocialPreviewItems(data) {
+    const items = [];
+    const mapping = [
+        ['socialLinkedIn', 'LinkedIn'],
+        ['socialFacebook', 'Facebook'],
+        ['socialTwitter', 'X'],
+        ['socialInstagram', 'Instagram'],
+        ['socialYoutube', 'YouTube'],
+        ['socialTikTok', 'TikTok'],
+    ];
+    mapping.forEach(([key, label]) => {
+        if (data[key]) {
+            items.push(`${label}: ${data[key]}`);
+        }
+    });
+    return items;
+}
+
+function updateQRCode(container, downloadButton, value) {
+    if (!value) {
+        clearQRCode(container, downloadButton);
+        return;
+    }
+
+    if (typeof QRCode === 'undefined') {
+        container.textContent = 'QR-Code Bibliothek konnte nicht geladen werden.';
+        downloadButton.disabled = true;
+        return;
+    }
+
+    if (!container._qrCodeInstance) {
+        container.innerHTML = '';
+        container._qrCodeInstance = new QRCode(container, {
+            width: 220,
+            height: 220,
+            correctLevel: QRCode.CorrectLevel.M,
+        });
+    }
+
+    container._qrCodeInstance.clear();
+    container._qrCodeInstance.makeCode(value);
+
+    setTimeout(() => {
+        const exportable = getQRCodeDataUrl(container);
+        downloadButton.disabled = !exportable;
+    }, 50);
+}
+
+function clearQRCode(container, downloadButton) {
+    if (container._qrCodeInstance) {
+        container._qrCodeInstance.clear();
+    }
+    container.innerHTML = '<p>Der QR-Code erscheint, sobald alle Pflichtfelder gültig sind.</p>';
+    downloadButton.disabled = true;
+}
+
+function getQRCodeDataUrl(container) {
+    const canvas = container.querySelector('canvas');
+    if (canvas && canvas.toDataURL) {
+        return canvas.toDataURL('image/png');
+    }
+    const img = container.querySelector('img');
+    return img ? img.src : '';
+}
+
+function buildSafeFileName(data) {
+    const base = `${data.firstName || ''}_${data.lastName || ''}`.trim() || 'kontakt';
+    const normalized = base
+        .normalize('NFKD')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_')
+        .replace(/_{2,}/g, '_')
+        .replace(/^_|_$/g, '');
+    return normalized || 'kontakt';
+}
+
+function createVCFString(data) {
+    const lines = [];
+    lines.push('BEGIN:VCARD');
+    lines.push('VERSION:3.0');
+    lines.push('PRODID:-//vCard Generator//DE');
+    lines.push(foldLine(`REV:${new Date().toISOString()}`));
+
+    const n = [data.lastName, data.firstName, data.middleName, data.prefix, data.suffix]
+        .map(escapeVCF)
+        .join(';');
+    lines.push(foldLine(`N:${n}`));
+
+    const formattedName = [data.prefix, data.firstName, data.middleName, data.lastName, data.suffix]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || `${data.firstName} ${data.lastName}`.trim();
+    lines.push(foldLine(`FN:${escapeVCF(formattedName)}`));
+
+    addField(lines, 'NICKNAME', data.nickname);
+    addField(lines, 'BDAY', data.birthday, formatDateForVCF);
+    addField(lines, 'ORG', data.company);
+    addField(lines, 'TITLE', data.title);
+    addField(lines, 'URL', data.website);
+    addField(lines, 'CALURI', data.calendar);
+    addField(lines, 'NOTE', data.notes);
+
+    addField(lines, 'EMAIL;TYPE=HOME', data.emailHome);
+    addField(lines, 'EMAIL;TYPE=WORK', data.emailWork);
+
+    addField(lines, 'TEL;TYPE=CELL', data.phoneMobile);
+    addField(lines, 'TEL;TYPE=HOME', data.phoneHome);
+    addField(lines, 'TEL;TYPE=WORK', data.phoneWork);
+    addField(lines, 'TEL;TYPE=FAX,HOME', data.faxHome);
+    addField(lines, 'TEL;TYPE=FAX,WORK', data.faxWork);
+
+    addAddress(lines, 'HOME', {
+        street: data.adrHomeStreet,
+        city: data.adrHomeCity,
+        region: data.adrHomeState,
+        zip: data.adrHomeZip,
+        country: data.adrHomeCountry,
+    });
+
+    addAddress(lines, 'WORK', {
+        street: data.adrWorkStreet,
+        city: data.adrWorkCity,
+        region: data.adrWorkState,
+        zip: data.adrWorkZip,
+        country: data.adrWorkCountry,
+    });
+
+    addSocial(lines, 'facebook', data.socialFacebook);
+    addSocial(lines, 'twitter', data.socialTwitter);
+    addSocial(lines, 'linkedin', data.socialLinkedIn);
+    addSocial(lines, 'instagram', data.socialInstagram);
+    addSocial(lines, 'youtube', data.socialYoutube);
+    addSocial(lines, 'tiktok', data.socialTikTok);
+
+    if (data.photo && data.photo.base64 && data.photo.type) {
+        const line = `PHOTO;ENCODING=b64;TYPE=${data.photo.type}:${data.photo.base64}`;
+        lines.push(foldLine(line));
+    }
+
+    lines.push('END:VCARD');
+    return lines.join('\r\n');
+}
+
+function addField(lines, key, value, transform) {
+    if (!value) return;
+    const processed = transform ? transform(value) : value;
+    if (!processed) return;
+    lines.push(foldLine(`${key}:${escapeVCF(processed)}`));
+}
+
+function addAddress(lines, type, address) {
+    const parts = [address.street, address.city, address.region, address.zip, address.country];
+    if (parts.every((part) => !part)) {
+        return;
+    }
+    const adrValue = [
+        '',
+        '',
+        escapeVCF(address.street || ''),
+        escapeVCF(address.city || ''),
+        escapeVCF(address.region || ''),
+        escapeVCF(address.zip || ''),
+        escapeVCF(address.country || ''),
+    ].join(';');
+    lines.push(foldLine(`ADR;TYPE=${type}:${adrValue}`));
+
+    const labelLines = [
+        address.street,
+        [address.zip, address.city].filter(Boolean).join(' '),
+        [address.region, address.country].filter(Boolean).join(', '),
+    ].filter(Boolean);
+
+    if (labelLines.length) {
+        lines.push(foldLine(`LABEL;TYPE=${type}:${escapeVCF(labelLines.join('\n'))}`));
+    }
+}
+
+function addSocial(lines, type, value) {
+    if (!value) return;
+
+    if (value.startsWith('http')) {
+        lines.push(foldLine(`X-SOCIALPROFILE;TYPE=${type}:${escapeVCF(value)}`));
+        return;
+    }
+
+    let url;
+    const clean = value.replace(/^@/, '');
+    switch (type) {
+        case 'twitter':
+            url = `https://x.com/${clean}`;
+            break;
+        case 'instagram':
+            url = `https://instagram.com/${clean}`;
+            break;
+        case 'tiktok':
+            url = `https://tiktok.com/@${clean}`;
+            break;
+        case 'facebook':
+            url = `https://facebook.com/${clean}`;
+            break;
+        case 'youtube':
+            url = `https://youtube.com/${clean}`;
+            break;
+        default:
+            url = `https://${type}.com/${clean}`;
+            break;
+    }
+    lines.push(foldLine(`X-SOCIALPROFILE;TYPE=${type}:${escapeVCF(url)}`));
+}
+
+function escapeVCF(text) {
+    if (!text) return '';
+    return text
+        .replace(/\\/g, '\\\\')
+        .replace(/\n/g, '\\n')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,');
+}
+
 function foldLine(line) {
-    const maxLineLength = 75;
+    const maxLength = 75;
+    if (line.length <= maxLength) {
+        return line;
+    }
     let result = '';
-    let i = 0;
-    while (i < line.length) {
-        if (i === 0) {
-            result += line.substring(i, i + maxLineLength);
-            i += maxLineLength;
+    let index = 0;
+    while (index < line.length) {
+        if (index === 0) {
+            result += line.substring(index, index + maxLength);
+            index += maxLength;
         } else {
-            // Jede folgende Zeile wird mit einem Leerzeichen eingerückt
-            result += "\r\n " + line.substring(i, i + maxLineLength - 1);
-            i += maxLineLength - 1;
+            result += `\r\n ${line.substring(index, index + maxLength - 1)}`;
+            index += maxLength - 1;
         }
     }
     return result;
 }
 
-/**
- * Löst den Download einer Textdatei im Browser aus.
- * (Unverändert von der V1)
- * @param {string} content - Der Inhalt der Datei (unser VCF-String)
- * @param {string} fileName - Der gewünschte Dateiname (z.B. "kontakt.vcf")
- */
+function formatDateForVCF(value) {
+    if (!value) {
+        return '';
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return value.replace(/-/g, '');
+    }
+    return value;
+}
+
+function readPhoto(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const dataUrl = event.target.result;
+            const base64 = dataUrl.split(',')[1];
+            const type = file.type.split('/')[1].toUpperCase();
+            resolve({ base64, type });
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+}
+
 function downloadVCF(content, fileName) {
     const blob = new Blob([content], { type: 'text/vcard;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -274,3 +733,13 @@ function downloadVCF(content, fileName) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 }
+
+function downloadDataUrl(dataUrl, fileName) {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
