@@ -15,6 +15,7 @@
     </header>
 
     <main id="main-content" class="main-container">
+        
         <form id="vcard-form" aria-describedby="form-feedback">
             <div id="form-feedback" class="form-feedback" role="alert" aria-live="polite"></div>
 
@@ -186,8 +187,18 @@
                 </details>
             </section>
 
-            <button type="submit">vCard (.vcf) generieren</button>
+            <div class="form-actions">
+                <button type="submit" id="submit-button">vCard (.vcf) generieren</button>
+                <button type="button" id="reset-button" class="button-secondary">Formular leeren</button>
+            </div>
         </form>
+
+        <section class="preview-section">
+            <h2 class="form-section__title">vCard Rohdaten (Echtzeit-Vorschau)</h2>
+            <p class="note">Hier siehst du den Live-Text deiner vCard. Du kannst ihn direkt kopieren.</p>
+            <textarea id="vcard-preview" readonly placeholder="BEGIN:VCARD..."></textarea>
+        </section>
+
     </main>
 
     <footer class="page-footer">
@@ -196,7 +207,6 @@
     </footer>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" referrerpolicy="no-referrer"></script>
-    
     <script src="app.js" type="module" defer></script>
 </body>
 </html>
