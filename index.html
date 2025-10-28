@@ -7,173 +7,228 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
     <div class="container">
-        <h1>vCard Generator</h1>
-        <p>Alle Daten werden nur in deinem Browser verarbeitet.</p>
+        <header class="intro">
+            <h1>vCard Generator</h1>
+            <p>Alle Daten werden ausschließlich in deinem Browser verarbeitet.</p>
+        </header>
 
-        <form id="vcard-form">
+        <main class="layout">
+            <form id="vcard-form" novalidate aria-describedby="form-feedback">
+                <div id="form-feedback" class="form-feedback" role="alert" aria-live="polite"></div>
 
-            <details class="field-group" open>
-                <summary>Name</summary>
-                <div class="group-content">
-                    <label for="prefix">Prefix (z.B. Dr.)</label>
-                    <input type="text" id="prefix" placeholder="Prefix">
-                    
-                    <label for="firstName">First Name</label>
-                    <input type="text" id="firstName" placeholder="First Name" required>
-                    
-                    <label for="middleName">Middle Name</label>
-                    <input type="text" id="middleName" placeholder="Middle Name">
-                    
-                    <label for="lastName">Last Name</label>
-                    <input type="text" id="lastName" placeholder="Last Name" required>
-                    
-                    <label for="suffix">Suffix</label>
-                    <input type="text" id="suffix" placeholder="Suffix">
-                    
-                    <label for="nickname">Nickname</label>
-                    <input type="text" id="nickname" placeholder="Nickname">
-                </div>
-            </details>
+                <details class="field-group" open>
+                    <summary>Name</summary>
+                    <div class="group-content">
+                        <label for="prefix">Anrede / Titel</label>
+                        <input type="text" id="prefix" placeholder="z. B. Dr.">
 
-            <details class="field-group">
-                <summary>Work</summary>
-                <div class="group-content">
-                    <label for="company">Company Name</label>
-                    <input type="text" id="company" placeholder="Company Name">
+                        <label for="firstName">Vorname <span aria-hidden="true">*</span></label>
+                        <input type="text" id="firstName" placeholder="Vorname" autocomplete="given-name" required>
 
-                    <label for="title">Title</label>
-                    <input type="text" id="title" placeholder="Title">
+                        <label for="middleName">Zweitname</label>
+                        <input type="text" id="middleName" placeholder="Zweitname">
 
-                    <label for="website">Website</label>
-                    <input type="url" id="website" placeholder="https://...">
-                    
-                    <label for="calendar">Calendar URL</label>
-                    <input type="url" id="calendar" placeholder="https://...">
-                </div>
-            </details>
+                        <label for="lastName">Nachname <span aria-hidden="true">*</span></label>
+                        <input type="text" id="lastName" placeholder="Nachname" autocomplete="family-name" required>
 
-            <details class="field-group">
-                <summary>Emails</summary>
-                <div class="group-content">
-                    <label for="emailHome">Home Email</label>
-                    <input type="email" id="emailHome" placeholder="Home Email">
+                        <label for="suffix">Namenszusatz</label>
+                        <input type="text" id="suffix" placeholder="z. B. MBA">
 
-                    <label for="emailWork">Work Email</label>
-                    <input type="email" id="emailWork" placeholder="Work Email">
-                </div>
-            </details>
+                        <label for="nickname">Spitzname</label>
+                        <input type="text" id="nickname" placeholder="Spitzname">
 
-            <details class="field-group">
-                <summary>Phones</summary>
-                <div class="group-content">
-                    <label for="phoneMobile">Mobile</label>
-                    <input type="tel" id="phoneMobile" placeholder="Cell Phone">
-                    
-                    <label for="phoneHome">Home</label>
-                    <input type="tel" id="phoneHome" placeholder="Home Phone">
-                    
-                    <label for="phoneWork">Work</label>
-                    <input type="tel" id="phoneWork" placeholder="Work Phone">
-                    
-                    <label for="faxHome">Home Fax</label>
-                    <input type="tel" id="faxHome" placeholder="Home Fax">
-                    
-                    <label for="faxWork">Work Fax</label>
-                    <input type="tel" id="faxWork" placeholder="Work Fax">
-                </div>
-            </details>
-            
-            <details class="field-group">
-                <summary>Home Address</summary>
-                <div class="group-content">
-                    <label for="adrHomeStreet">Street</label>
-                    <input type="text" id="adrHomeStreet" placeholder="Street">
-                    
-                    <label for="adrHomeCity">City</label>
-                    <input type="text" id="adrHomeCity" placeholder="City">
-                    
-                    <label for="adrHomeState">State / Province</label>
-                    <input type="text" id="adrHomeState" placeholder="State / Province">
-                    
-                    <label for="adrHomeZip">Postal Code</label>
-                    <input type="text" id="adrHomeZip" placeholder="Postal Code">
-                    
-                    <label for="adrHomeCountry">Country</label>
-                    <input type="text" id="adrHomeCountry" placeholder="Country">
-                </div>
-            </details>
-            
-            <details class="field-group">
-                <summary>Work Address</summary>
-                <div class="group-content">
-                    <label for="adrWorkStreet">Street</label>
-                    <input type="text" id="adrWorkStreet" placeholder="Street">
-                    
-                    <label for="adrWorkCity">City</label>
-                    <input type="text" id="adrWorkCity" placeholder="City">
-                    
-                    <label for="adrWorkState">State / Province</label>
-                    <input type="text" id="adrWorkState" placeholder="State / Province">
-                    
-                    <label for="adrWorkZip">Postal Code</label>
-                    <input type="text" id="adrWorkZip" placeholder="Postal Code">
-                    
-                    <label for="adrWorkCountry">Country</label>
-                    <input type="text" id="adrWorkCountry" placeholder="Country">
-                </div>
-            </details>
-            
-            <details class="field-group">
-                <summary>Images</summary>
-                <div class="group-content">
-                    <label for="photo">Photo (.JPG, .PNG)</label>
-                    <input type="file" id="photo" accept="image/jpeg, image/png">
-                    <p class="note">Empfohlen: 480x480, max 224KB. Große Bilder können Kompatibilitätsprobleme verursachen.</p>
-                </div>
-            </details>
-            
-            <details class="field-group">
-                <summary>Social</summary>
-                <div class="group-content">
-                    <label for="socialFacebook">Facebook (Username oder URL)</label>
-                    <input type="text" id="socialFacebook" placeholder="Facebook">
-                    
-                    <label for="socialTwitter">Twitter / X (Username)</label>
-                    <input type="text" id="socialTwitter" placeholder="@username">
-                    
-                    <label for="socialLinkedIn">LinkedIn (Profil-URL)</label>
-                    <input type="url" id="socialLinkedIn" placeholder="https://linkedin.com/in/...">
-                    
-                    <label for="socialInstagram">Instagram (Username)</label>
-                    <input type="text" id="socialInstagram" placeholder="username">
-                    
-                    <label for="socialYoutube">Youtube (Channel-URL)</label>
-                    <input type="url" id="socialYoutube" placeholder="https://youtube.com/c/...">
-                    
-                    <label for="socialTikTok">TikTok (Username)</label>
-                    <input type="text" id="socialTikTok" placeholder="@username">
-                </div>
-            </details>
-            
-            <details class="field-group">
-                <summary>Other</summary>
-                <div class="group-content">
-                    <label for="notes">Notes</label>
-                    <textarea id="notes" rows="4" placeholder="Notes"></textarea>
-                </div>
-            </details>
+                        <label for="birthday">Geburtstag</label>
+                        <input type="date" id="birthday" placeholder="TT.MM.JJJJ" autocomplete="bday">
+                    </div>
+                </details>
 
-            <button type="submit">vCard (.vcf) generieren</button>
-        </form>
+                <details class="field-group">
+                    <summary>Berufliches</summary>
+                    <div class="group-content">
+                        <label for="company">Unternehmen</label>
+                        <input type="text" id="company" placeholder="Unternehmensname">
+
+                        <label for="title">Position</label>
+                        <input type="text" id="title" placeholder="z. B. Marketing Manager">
+
+                        <label for="website">Website</label>
+                        <input type="url" id="website" placeholder="https://beispiel.de" autocomplete="url" aria-describedby="website-hint">
+                        <p class="note" id="website-hint">Verwende vollständige URLs inklusive https://.</p>
+
+                        <label for="calendar">Kalender-Link</label>
+                        <input type="url" id="calendar" placeholder="https://kalender.beispiel.de" aria-describedby="calendar-hint">
+                        <p class="note" id="calendar-hint">Nur öffentlich erreichbare Kalender verlinken.</p>
+                    </div>
+                </details>
+
+                <details class="field-group">
+                    <summary>E-Mails</summary>
+                    <div class="group-content">
+                        <label for="emailHome">Private E-Mail</label>
+                        <input type="email" id="emailHome" placeholder="name@beispiel.de" autocomplete="email">
+
+                        <label for="emailWork">Geschäftliche E-Mail</label>
+                        <input type="email" id="emailWork" placeholder="name@unternehmen.de" autocomplete="email">
+                    </div>
+                </details>
+
+                <details class="field-group">
+                    <summary>Telefonnummern</summary>
+                    <div class="group-content">
+                        <label for="phoneMobile">Mobil</label>
+                        <input type="tel" id="phoneMobile" placeholder="+49 170 1234567" autocomplete="tel" aria-describedby="phone-hint">
+
+                        <label for="phoneHome">Privat</label>
+                        <input type="tel" id="phoneHome" placeholder="Festnetz privat" autocomplete="tel" aria-describedby="phone-hint">
+
+                        <label for="phoneWork">Geschäftlich</label>
+                        <input type="tel" id="phoneWork" placeholder="Festnetz geschäftlich" autocomplete="tel" aria-describedby="phone-hint">
+
+                        <label for="faxHome">Fax privat</label>
+                        <input type="tel" id="faxHome" placeholder="Fax privat" aria-describedby="phone-hint">
+
+                        <label for="faxWork">Fax geschäftlich</label>
+                        <input type="tel" id="faxWork" placeholder="Fax geschäftlich" aria-describedby="phone-hint">
+
+                        <p class="note" id="phone-hint">Erlaubte Zeichen: Ziffern, Leerzeichen, Klammern, +, - und /.</p>
+                    </div>
+                </details>
+
+                <details class="field-group">
+                    <summary>Privatadresse</summary>
+                    <div class="group-content">
+                        <label for="adrHomeStreet">Straße und Hausnummer</label>
+                        <input type="text" id="adrHomeStreet" placeholder="Straße 1">
+
+                        <label for="adrHomeCity">Ort</label>
+                        <input type="text" id="adrHomeCity" placeholder="Ort">
+
+                        <label for="adrHomeState">Bundesland / Region</label>
+                        <input type="text" id="adrHomeState" placeholder="Bundesland oder Region">
+
+                        <label for="adrHomeZip">Postleitzahl</label>
+                        <input type="text" id="adrHomeZip" placeholder="PLZ">
+
+                        <label for="adrHomeCountry">Land</label>
+                        <input type="text" id="adrHomeCountry" placeholder="Land">
+                    </div>
+                </details>
+
+                <details class="field-group">
+                    <summary>Arbeitsadresse</summary>
+                    <div class="group-content">
+                        <label for="adrWorkStreet">Straße und Hausnummer</label>
+                        <input type="text" id="adrWorkStreet" placeholder="Straße 1">
+
+                        <label for="adrWorkCity">Ort</label>
+                        <input type="text" id="adrWorkCity" placeholder="Ort">
+
+                        <label for="adrWorkState">Bundesland / Region</label>
+                        <input type="text" id="adrWorkState" placeholder="Bundesland oder Region">
+
+                        <label for="adrWorkZip">Postleitzahl</label>
+                        <input type="text" id="adrWorkZip" placeholder="PLZ">
+
+                        <label for="adrWorkCountry">Land</label>
+                        <input type="text" id="adrWorkCountry" placeholder="Land">
+                    </div>
+                </details>
+
+                <details class="field-group">
+                    <summary>Bilder</summary>
+                    <div class="group-content">
+                        <label for="photo">Foto (.JPG, .PNG)</label>
+                        <input type="file" id="photo" accept="image/jpeg, image/png" aria-describedby="photo-hint">
+                        <p class="note" id="photo-hint">Empfohlen: 480×480&nbsp;px, max. 400&nbsp;KB.</p>
+                    </div>
+                </details>
+
+                <details class="field-group">
+                    <summary>Online-Profile</summary>
+                    <div class="group-content">
+                        <label for="socialFacebook">Facebook (Benutzername oder URL)</label>
+                        <input type="text" id="socialFacebook" placeholder="benutzername" aria-describedby="social-hint">
+
+                        <label for="socialTwitter">X / Twitter (Benutzername)</label>
+                        <input type="text" id="socialTwitter" placeholder="@benutzername" aria-describedby="social-hint">
+
+                        <label for="socialLinkedIn">LinkedIn (Profil-URL)</label>
+                        <input type="url" id="socialLinkedIn" placeholder="https://www.linkedin.com/in/..." aria-describedby="social-hint">
+
+                        <label for="socialInstagram">Instagram (Benutzername)</label>
+                        <input type="text" id="socialInstagram" placeholder="benutzername" aria-describedby="social-hint">
+
+                        <label for="socialYoutube">YouTube (Kanal-URL)</label>
+                        <input type="url" id="socialYoutube" placeholder="https://youtube.com/c/..." aria-describedby="social-hint">
+
+                        <label for="socialTikTok">TikTok (Benutzername)</label>
+                        <input type="text" id="socialTikTok" placeholder="@benutzername" aria-describedby="social-hint">
+
+                        <p class="note" id="social-hint">Benutzernamen ohne Leerzeichen, Links bitte als vollständige URL angeben.</p>
+                    </div>
+                </details>
+
+                <details class="field-group">
+                    <summary>Weitere Angaben</summary>
+                    <div class="group-content">
+                        <label for="notes">Notizen</label>
+                        <textarea id="notes" rows="4" placeholder="Zusätzliche Hinweise"></textarea>
+                    </div>
+                </details>
+
+                <button type="submit">vCard (.vcf) generieren</button>
+
+                <section class="vcf-preview" id="vcf-preview-section" aria-live="polite">
+                    <h2>vCard-Textvorschau</h2>
+                    <p class="note">Dieser Text erscheint exakt so in der heruntergeladenen .vcf-Datei.</p>
+                    <pre id="vcf-preview" class="vcf-preview__code placeholder" tabindex="0">Fülle mindestens Vor- und Nachname aus, um die Vorschau zu sehen.</pre>
+                </section>
+            </form>
+
+            <aside class="preview-panel" aria-live="polite">
+                <h2>Live-Vorschau</h2>
+                <div class="preview-card" id="preview-card">
+                    <p class="preview-name" id="preview-name">Name erscheint hier</p>
+                    <p class="preview-role" id="preview-role"></p>
+                    <p class="preview-company" id="preview-company"></p>
+
+                    <div class="preview-section" id="preview-contact-section" hidden>
+                        <h3>Kontaktdaten</h3>
+                        <ul id="preview-contact"></ul>
+                    </div>
+
+                    <div class="preview-section" id="preview-address-section" hidden>
+                        <h3>Adressen</h3>
+                        <ul id="preview-address"></ul>
+                    </div>
+
+                    <div class="preview-section" id="preview-social-section" hidden>
+                        <h3>Online-Profile</h3>
+                        <ul id="preview-social"></ul>
+                    </div>
+
+                    <div class="preview-section" id="preview-notes-section" hidden>
+                        <h3>Notizen</h3>
+                        <p id="preview-notes"></p>
+                    </div>
+                </div>
+
+                <section class="qr-section">
+                    <h3>QR-Code</h3>
+                    <div id="qr-code" class="qr-code" aria-hidden="true"></div>
+                    <button type="button" id="qr-download" disabled>QR-Code als PNG speichern</button>
+                </section>
+            </aside>
+        </main>
+
+        <footer>
+            <a href="impressum.html" target="_blank">Impressum</a>
+            <a href="datenschutz.html" target="_blank">Datenschutz</a>
+        </footer>
     </div>
 
-    <footer>
-        <a href="impressum.html" target="_blank">Impressum</a>
-        <a href="datenschutz.html" target="_blank">Datenschutz</a>
-    </footer>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" referrerpolicy="no-referrer"></script>
     <script src="app.js"></script>
 </body>
 </html>
