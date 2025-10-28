@@ -118,6 +118,11 @@ async function createVCFString(data) {
         if (photoLine) {
             lines.push(photoLine);
         }
+        ids.add(field.id);
+    });
+
+    if (touchedFields instanceof Set && touchedFields.has('photo')) {
+        ids.add('photo');
     }
 
     lines.push('END:VCARD');
