@@ -26,7 +26,16 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Fehler beim Erstellen der vCard:', error);
             showFeedback(feedbackElement, 'Das Foto konnte nicht verarbeitet werden. Bitte wähle eine kleinere Datei oder lasse das Foto weg.', 'error');
         }
+
+        const vcf = createVCFString({ ...data, photo: state.photo });
+        const fileName = buildSafeFileName(data);
+        downloadVCF(vcf, `${fileName}.vcf`);
+        feedback.textContent = 'vCard erfolgreich erstellt und heruntergeladen.';
+        feedback.classList.add('success');
+        updateQRCode(qrContainer, qrDownloadButton, vcf);
     });
+
+    refreshUI();
 });
 
 function collectFormData(form) {
@@ -274,6 +283,174 @@ function addSocial(lines, type, value) {
             default:
                 url = `https://${type}.com/${url}`;
         }
+    });
+    return items;
+}
+
+function updateQRCode(container, downloadButton, value) {
+    if (!value) {
+        clearQRCode(container, downloadButton);
+        return;
+    }
+
+    if (typeof QRCode === 'undefined') {
+        container.textContent = 'QR-Code Bibliothek konnte nicht geladen werden.';
+        downloadButton.disabled = true;
+        return;
+    }
+
+    if (!container._qrCodeInstance) {
+        container.innerHTML = '';
+        container._qrCodeInstance = new QRCode(container, {
+            width: 220,
+            height: 220,
+            correctLevel: QRCode.CorrectLevel.M,
+        });
+    }
+
+    container._qrCodeInstance.clear();
+    container._qrCodeInstance.makeCode(value);
+
+    setTimeout(() => {
+        const exportable = getQRCodeDataUrl(container);
+        downloadButton.disabled = !exportable;
+    }, 50);
+}
+
+function clearQRCode(container, downloadButton) {
+    if (container._qrCodeInstance) {
+        container._qrCodeInstance.clear();
+    }
+    container.innerHTML = '<p>Der QR-Code erscheint, sobald alle Pflichtfelder gültig sind.</p>';
+    downloadButton.disabled = true;
+}
+
+function getQRCodeDataUrl(container) {
+    const canvas = container.querySelector('canvas');
+    if (canvas && canvas.toDataURL) {
+        return canvas.toDataURL('image/png');
+    }
+    const img = container.querySelector('img');
+    return img ? img.src : '';
+}
+
+function buildSafeFileName(data) {
+    const base = `${data.firstName || ''}_${data.lastName || ''}`.trim() || 'kontakt';
+    const normalized = base
+        .normalize('NFKD')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_')
+        .replace(/_{2,}/g, '_')
+        .replace(/^_|_$/g, '');
+    return normalized || 'kontakt';
+}
+
+function createVCFString(data) {
+    const lines = [];
+    lines.push('BEGIN:VCARD');
+    lines.push('VERSION:3.0');
+    lines.push('PRODID:-//vCard Generator//DE');
+    lines.push(foldLine(`REV:${new Date().toISOString()}`));
+
+    const n = [data.lastName, data.firstName, data.middleName, data.prefix, data.suffix]
+        .map(escapeVCF)
+        .join(';');
+    lines.push(foldLine(`N:${n}`));
+
+    const formattedName = [data.prefix, data.firstName, data.middleName, data.lastName, data.suffix]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || `${data.firstName} ${data.lastName}`.trim();
+    lines.push(foldLine(`FN:${escapeVCF(formattedName)}`));
+
+    addField(lines, 'NICKNAME', data.nickname);
+    addField(lines, 'BDAY', data.birthday, formatDateForVCF);
+    addField(lines, 'ORG', data.company);
+    addField(lines, 'TITLE', data.title);
+    addField(lines, 'URL', data.website);
+    addField(lines, 'CALURI', data.calendar);
+    addField(lines, 'NOTE', data.notes);
+
+    addField(lines, 'EMAIL;TYPE=HOME', data.emailHome);
+    addField(lines, 'EMAIL;TYPE=WORK', data.emailWork);
+
+    addField(lines, 'TEL;TYPE=CELL', data.phoneMobile);
+    addField(lines, 'TEL;TYPE=HOME', data.phoneHome);
+    addField(lines, 'TEL;TYPE=WORK', data.phoneWork);
+    addField(lines, 'TEL;TYPE=FAX,HOME', data.faxHome);
+    addField(lines, 'TEL;TYPE=FAX,WORK', data.faxWork);
+
+    addAddress(lines, 'HOME', {
+        street: data.adrHomeStreet,
+        city: data.adrHomeCity,
+        region: data.adrHomeState,
+        zip: data.adrHomeZip,
+        country: data.adrHomeCountry,
+    });
+
+    addAddress(lines, 'WORK', {
+        street: data.adrWorkStreet,
+        city: data.adrWorkCity,
+        region: data.adrWorkState,
+        zip: data.adrWorkZip,
+        country: data.adrWorkCountry,
+    });
+
+    addSocial(lines, 'facebook', data.socialFacebook);
+    addSocial(lines, 'twitter', data.socialTwitter);
+    addSocial(lines, 'linkedin', data.socialLinkedIn);
+    addSocial(lines, 'instagram', data.socialInstagram);
+    addSocial(lines, 'youtube', data.socialYoutube);
+    addSocial(lines, 'tiktok', data.socialTikTok);
+
+    if (data.photo && data.photo.base64 && data.photo.type) {
+        const line = `PHOTO;ENCODING=b64;TYPE=${data.photo.type}:${data.photo.base64}`;
+        lines.push(foldLine(line));
+    }
+
+    lines.push('END:VCARD');
+    return lines.join('\r\n');
+}
+
+function addField(lines, key, value, transform) {
+    if (!value) return;
+    const processed = transform ? transform(value) : value;
+    if (!processed) return;
+    lines.push(foldLine(`${key}:${escapeVCF(processed)}`));
+}
+
+function addAddress(lines, type, address) {
+    const parts = [address.street, address.city, address.region, address.zip, address.country];
+    if (parts.every((part) => !part)) {
+        return;
+    }
+    const adrValue = [
+        '',
+        '',
+        escapeVCF(address.street || ''),
+        escapeVCF(address.city || ''),
+        escapeVCF(address.region || ''),
+        escapeVCF(address.zip || ''),
+        escapeVCF(address.country || ''),
+    ].join(';');
+    lines.push(foldLine(`ADR;TYPE=${type}:${adrValue}`));
+
+    const labelLines = [
+        address.street,
+        [address.zip, address.city].filter(Boolean).join(' '),
+        [address.region, address.country].filter(Boolean).join(', '),
+    ].filter(Boolean);
+
+    if (labelLines.length) {
+        lines.push(foldLine(`LABEL;TYPE=${type}:${escapeVCF(labelLines.join('\n'))}`));
+    }
+}
+
+function addSocial(lines, type, value) {
+    if (!value) return;
+
+    if (value.startsWith('http')) {
+        lines.push(foldLine(`X-SOCIALPROFILE;TYPE=${type}:${escapeVCF(value)}`));
+        return;
     }
 
     lines.push(`X-SOCIALPROFILE;TYPE=${type}:${escapeVCF(url)}`);
@@ -292,7 +469,10 @@ function escapeVCF(text) {
 }
 
 function foldLine(line) {
-    const maxLineLength = 75;
+    const maxLength = 75;
+    if (line.length <= maxLength) {
+        return line;
+    }
     let result = '';
     let index = 0;
 
