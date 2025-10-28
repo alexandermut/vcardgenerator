@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vCard Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>vCard Generator</h1>
+        <p>Alle Daten werden nur in deinem Browser verarbeitet.</p>
+
+        <form id="vcard-form">
+            <fieldset>
+                <legend>Name</legend>
+                <label for="firstName">Vorname:</label>
+                <input type="text" id="firstName" required>
+                
+                <label for="lastName">Nachname:</label>
+                <input type="text" id="lastName" required>
+            </fieldset>
+
+            <fieldset>
+                <legend>Kontakt</legend>
+                <label for="phone">Telefon (Arbeit):</label>
+                <input type="tel" id="phone">
+                
+                <label for="email">E-Mail:</label>
+                <input type="email" id="email">
+            </fieldset>
+
+            <fieldset>
+                <legend>Arbeit</legend>
+                <label for="company">Firma:</label>
+                <input type="text" id="company">
+
+                <label for="title">Position:</label>
+                <input type="text" id="title">
+            </fieldset>
+
+            <button type="submit">vCard (.vcf) generieren</button>
+        </form>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
