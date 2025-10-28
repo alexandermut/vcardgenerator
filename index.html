@@ -13,36 +13,166 @@
         <p>Alle Daten werden nur in deinem Browser verarbeitet.</p>
 
         <form id="vcard-form">
-            <fieldset>
-                <legend>Name</legend>
-                <label for="firstName">Vorname:</label>
-                <input type="text" id="firstName" required>
-                
-                <label for="lastName">Nachname:</label>
-                <input type="text" id="lastName" required>
-            </fieldset>
 
-            <fieldset>
-                <legend>Kontakt</legend>
-                <label for="phone">Telefon (Arbeit):</label>
-                <input type="tel" id="phone">
-                
-                <label for="email">E-Mail:</label>
-                <input type="email" id="email">
-            </fieldset>
+            <details class="field-group" open>
+                <summary>Name</summary>
+                <div class="group-content">
+                    <label for="prefix">Prefix (z.B. Dr.)</label>
+                    <input type="text" id="prefix" placeholder="Prefix">
+                    
+                    <label for="firstName">First Name</label>
+                    <input type="text" id="firstName" placeholder="First Name" required>
+                    
+                    <label for="middleName">Middle Name</label>
+                    <input type="text" id="middleName" placeholder="Middle Name">
+                    
+                    <label for="lastName">Last Name</label>
+                    <input type="text" id="lastName" placeholder="Last Name" required>
+                    
+                    <label for="suffix">Suffix</label>
+                    <input type="text" id="suffix" placeholder="Suffix">
+                    
+                    <label for="nickname">Nickname</label>
+                    <input type="text" id="nickname" placeholder="Nickname">
+                </div>
+            </details>
 
-            <fieldset>
-                <legend>Arbeit</legend>
-                <label for="company">Firma:</label>
-                <input type="text" id="company">
+            <details class="field-group">
+                <summary>Work</summary>
+                <div class="group-content">
+                    <label for="company">Company Name</label>
+                    <input type="text" id="company" placeholder="Company Name">
 
-                <label for="title">Position:</label>
-                <input type="text" id="title">
-            </fieldset>
+                    <label for="title">Title</label>
+                    <input type="text" id="title" placeholder="Title">
+
+                    <label for="website">Website</label>
+                    <input type="url" id="website" placeholder="https://...">
+                    
+                    <label for="calendar">Calendar URL</label>
+                    <input type="url" id="calendar" placeholder="https://...">
+                </div>
+            </details>
+
+            <details class="field-group">
+                <summary>Emails</summary>
+                <div class="group-content">
+                    <label for="emailHome">Home Email</label>
+                    <input type="email" id="emailHome" placeholder="Home Email">
+
+                    <label for="emailWork">Work Email</label>
+                    <input type="email" id="emailWork" placeholder="Work Email">
+                </div>
+            </details>
+
+            <details class="field-group">
+                <summary>Phones</summary>
+                <div class="group-content">
+                    <label for="phoneMobile">Mobile</label>
+                    <input type="tel" id="phoneMobile" placeholder="Cell Phone">
+                    
+                    <label for="phoneHome">Home</label>
+                    <input type="tel" id="phoneHome" placeholder="Home Phone">
+                    
+                    <label for="phoneWork">Work</label>
+                    <input type="tel" id="phoneWork" placeholder="Work Phone">
+                    
+                    <label for="faxHome">Home Fax</label>
+                    <input type="tel" id="faxHome" placeholder="Home Fax">
+                    
+                    <label for="faxWork">Work Fax</label>
+                    <input type="tel" id="faxWork" placeholder="Work Fax">
+                </div>
+            </details>
+            
+            <details class="field-group">
+                <summary>Home Address</summary>
+                <div class="group-content">
+                    <label for="adrHomeStreet">Street</label>
+                    <input type="text" id="adrHomeStreet" placeholder="Street">
+                    
+                    <label for="adrHomeCity">City</label>
+                    <input type="text" id="adrHomeCity" placeholder="City">
+                    
+                    <label for="adrHomeState">State / Province</label>
+                    <input type="text" id="adrHomeState" placeholder="State / Province">
+                    
+                    <label for="adrHomeZip">Postal Code</label>
+                    <input type="text" id="adrHomeZip" placeholder="Postal Code">
+                    
+                    <label for="adrHomeCountry">Country</label>
+                    <input type="text" id="adrHomeCountry" placeholder="Country">
+                </div>
+            </details>
+            
+            <details class="field-group">
+                <summary>Work Address</summary>
+                <div class="group-content">
+                    <label for="adrWorkStreet">Street</label>
+                    <input type="text" id="adrWorkStreet" placeholder="Street">
+                    
+                    <label for="adrWorkCity">City</label>
+                    <input type="text" id="adrWorkCity" placeholder="City">
+                    
+                    <label for="adrWorkState">State / Province</label>
+                    <input type="text" id="adrWorkState" placeholder="State / Province">
+                    
+                    <label for="adrWorkZip">Postal Code</label>
+                    <input type="text" id="adrWorkZip" placeholder="Postal Code">
+                    
+                    <label for="adrWorkCountry">Country</label>
+                    <input type="text" id="adrWorkCountry" placeholder="Country">
+                </div>
+            </details>
+            
+            <details class="field-group">
+                <summary>Images</summary>
+                <div class="group-content">
+                    <label for="photo">Photo (.JPG, .PNG)</label>
+                    <input type="file" id="photo" accept="image/jpeg, image/png">
+                    <p class="note">Empfohlen: 480x480, max 224KB. Große Bilder können Kompatibilitätsprobleme verursachen.</p>
+                </div>
+            </details>
+            
+            <details class="field-group">
+                <summary>Social</summary>
+                <div class="group-content">
+                    <label for="socialFacebook">Facebook (Username oder URL)</label>
+                    <input type="text" id="socialFacebook" placeholder="Facebook">
+                    
+                    <label for="socialTwitter">Twitter / X (Username)</label>
+                    <input type="text" id="socialTwitter" placeholder="@username">
+                    
+                    <label for="socialLinkedIn">LinkedIn (Profil-URL)</label>
+                    <input type="url" id="socialLinkedIn" placeholder="https://linkedin.com/in/...">
+                    
+                    <label for="socialInstagram">Instagram (Username)</label>
+                    <input type="text" id="socialInstagram" placeholder="username">
+                    
+                    <label for="socialYoutube">Youtube (Channel-URL)</label>
+                    <input type="url" id="socialYoutube" placeholder="https://youtube.com/c/...">
+                    
+                    <label for="socialTikTok">TikTok (Username)</label>
+                    <input type="text" id="socialTikTok" placeholder="@username">
+                </div>
+            </details>
+            
+            <details class="field-group">
+                <summary>Other</summary>
+                <div class="group-content">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" rows="4" placeholder="Notes"></textarea>
+                </div>
+            </details>
 
             <button type="submit">vCard (.vcf) generieren</button>
         </form>
     </div>
+
+    <footer>
+        <a href="impressum.html" target="_blank">Impressum</a>
+        <a href="datenschutz.html" target="_blank">Datenschutz</a>
+    </footer>
 
     <script src="app.js"></script>
 </body>
